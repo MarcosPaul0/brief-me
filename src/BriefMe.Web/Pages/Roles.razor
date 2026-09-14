@@ -1,0 +1,158 @@
+@page "/perfis"
+@attribute [Authorize(Policy = "roles.manage")]
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Application.UseCases.Permissions
+@using BriefMe.Application.UseCases.Roles
+@using BriefMe.Web.Components.Profiles
+@using Microsoft.AspNetCore.Authorization
+@inject IRolesApiClient RolesApi
+@inject IPermissionsApiClient PermissionsApi
+@inject AuthSessionStore SessionStore
+
+<PageTitle>Perfis</PageTitle>
+
+<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
+    <div class="mx-auto max-w-[1100px]">
+        <div>
+            <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">Perfis</h1>
+            <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
+                Gerencie os perfis de acesso e as permissões de cada um.
+            </p>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="mt-[30px] flex items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-[15px] text-[#999999]">
+                <span class="h-4 w-4 animate-spin rounded-full border-2 border-[#262626] border-t-white"></span>
+                <span>Carregando perfis...</span>
+            </div>
+        }
+        else if (_rolesError is not null)
+        {
+            <div class="mt-[30px] flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-center">
+                <p class="text-[15px] text-[#ef4444]">@_rolesError</p>
+                <button type="button" @onclick="LoadAsync"
+                        class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
+                    Tentar novamente
+                </button>
+            </div>
+        }
+        else if (_roles.Count == 0)
+        {
+            <div class="mt-[30px] flex flex-col items-center justify-center gap-1 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-center">
+                <p class="text-[15px] text-white">Nenhum perfil cadastrado</p>
+                <p class="text-[14px] text-[#999999]">Os perfis nativos são criados na carga inicial do sistema.</p>
+            </div>
+        }
+        else
+        {
+            <div class="mt-[30px] grid gap-[20px] lg:grid-cols-[320px_minmax(0,1fr)]">
+                <nav aria-label="Perfis" class="flex flex-col gap-2 self-start rounded-[20px] border border-[#262626] bg-[#141414] p-[14px]">
+                    @foreach (var role in _roles)
+                    {
+                        <button type="button" @onclick="() => SelectRole(role)"
+                                aria-current="@(IsSelected(role) ? "true" : null)"
+                                class="@RoleButtonClass(role)">
+                            <span class="flex items-center gap-2">
+                                <span class="text-[15px] leading-[1.3] tracking-[-0.15px]">@role.Name</span>
+                                @if (role.IsSystemRole)
+                                {
+                                    <span class="inline-flex items-center rounded-[100px] bg-[#090909] px-[8px] py-[2px] text-[12px] tracking-[-0.12px] text-[#999999]">Sistema</span>
+                                }
+                            </span>
+                            @if (!string.IsNullOrWhiteSpace(role.Description))
+                            {
+                                <span class="mt-[2px] block text-[13px] font-medium tracking-[-0.13px] text-[#999999]">@role.Description</span>
+                            }
+                        </button>
+                    }
+                </nav>
+
+                @if (_catalogError is not null)
+                {
+                    <div class="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] px-6 py-24 text-center">
+                        <p class="text-[15px] text-white">Não foi possível carregar o catálogo de permissões</p>
+                        <p class="max-w-[420px] text-[14px] leading-[1.4] text-[#999999]">
+                            A edição de permissões exige a permissão <span class="text-white">permissions.manage</span>,
+                            além de <span class="text-white">roles.manage</span>. Solicite o acesso e tente novamente.
+                        </p>
+                        <button type="button" @onclick="LoadAsync"
+                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
+                            Tentar novamente
+                        </button>
+                    </div>
+                }
+                else if (_selectedRole is not null)
+                {
+                    <RolePermissionsPanel Role="_selectedRole" PermissionGroups="_permissionGroups" />
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private string? _rolesError;
+    private string? _catalogError;
+
+    private IReadOnlyList<RoleListItemDto> _roles = [];
+    private IReadOnlyList<PermissionGroupDto> _permissionGroups = [];
+    private RoleListItemDto? _selectedRole;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No interactive circuit during prerender means no restored token yet; the API call would go out
+        // anonymous. Wait for the interactive pass and the session restore (same as Users.razor).
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _rolesError = null;
+        _catalogError = null;
+        StateHasChanged();
+
+        var rolesResult = await RolesApi.GetRolesAsync();
+
+        if (rolesResult.IsSuccess)
+        {
+            _roles = [.. rolesResult.Value.OrderBy(role => role.Name, StringComparer.CurrentCulture)];
+            _selectedRole = _roles.FirstOrDefault(role => role.RoleId == _selectedRole?.RoleId) ?? _roles.FirstOrDefault();
+        }
+        else
+        {
+            _roles = [];
+            _selectedRole = null;
+            _rolesError = rolesResult.Error;
+        }
+
+        // The catalog is required to edit: without it there are no checkboxes and no way to map the
+        // role's permission codes back to ids — saving would wipe the role's permissions. Fail closed
+        // on the editor while keeping the read-only list usable (USRROLE-11).
+        var catalogResult = await PermissionsApi.GetPermissionGroupsAsync();
+
+        if (catalogResult.IsSuccess)
+            _permissionGroups = catalogResult.Value;
+        else
+            _catalogError = catalogResult.Error;
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private void SelectRole(RoleListItemDto role) => _selectedRole = role;
+
+    private bool IsSelected(RoleListItemDto role) => _selectedRole?.RoleId == role.RoleId;
+
+    private string RoleButtonClass(RoleListItemDto role) =>
+        IsSelected(role)
+            ? "rounded-[10px] bg-[#1c1c1c] px-[14px] py-[10px] text-left text-white transition"
+            : "rounded-[10px] px-[14px] py-[10px] text-left text-white transition hover:bg-[#1c1c1c]";
+}
