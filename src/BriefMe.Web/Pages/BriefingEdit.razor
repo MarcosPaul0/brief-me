@@ -1,0 +1,12 @@
+@page "/briefings/{Id:guid}/editar"
+@attribute [Authorize(Policy = "briefings.create")]
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Editar briefing</PageTitle>
+
+<BriefingEditor BriefingId="Id" />
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+}

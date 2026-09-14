@@ -1,0 +1,239 @@
+@* BRF-020 (RF011–RF014) — the Design Manager's review surface for a single briefing awaiting approval.
+   Thin by design: it renders the briefing's content, mirrors the mandatory-justification rule (RF013) to
+   gate its own confirm button, and delegates every decision to the API client. *@
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Application.UseCases.Briefings
+@using BriefMe.Domain.ValueObjects
+@inject IBriefingsApiClient BriefingsApi
+
+<div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-8"
+     role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
+    <div class="w-full max-w-[640px] rounded-[20px] border border-white/10 bg-[#141414] shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+        <div class="flex items-start justify-between gap-4 border-b border-[#262626] p-[30px]">
+            <div>
+                <p class="text-[13px] font-medium tracking-[-0.13px] text-[#999999]">Revisão de briefing</p>
+                <h2 id="reviewTitle" class="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.8px] text-white">
+                    @Briefing.Title
+                </h2>
+                <span class="mt-2 inline-flex items-center rounded-[100px] px-[10px] py-[4px] text-[13px] font-medium @BriefingLabels.StatusBadgeClass(Briefing.Status)">
+                    @BriefingLabels.Status(Briefing.Status)
+                </span>
+            </div>
+            <button type="button" @onclick="DismissAsync" disabled="@_isSubmitting" aria-label="Fechar"
+                    class="rounded-[100px] bg-[#1c1c1c] px-[12px] py-[8px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:opacity-50">
+                Fechar
+            </button>
+        </div>
+
+        <div class="flex flex-col gap-[20px] p-[30px]">
+            <dl class="grid gap-[15px] sm:grid-cols-2">
+                <div>
+                    <dt class="text-[13px] font-medium text-[#999999]">Solicitante</dt>
+                    <dd class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@(Briefing.RequesterName ?? "—")</dd>
+                </div>
+                <div>
+                    <dt class="text-[13px] font-medium text-[#999999]">Categoria</dt>
+                    <dd class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@(Briefing.CategoryName ?? "—")</dd>
+                </div>
+                <div>
+                    <dt class="text-[13px] font-medium text-[#999999]">Prioridade</dt>
+                    <dd class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@BriefingLabels.Priority(Briefing.Priority)</dd>
+                </div>
+                <div>
+                    <dt class="text-[13px] font-medium text-[#999999]">Área solicitante</dt>
+                    <dd class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@(Briefing.RequestingArea ?? "—")</dd>
+                </div>
+                <div>
+                    <dt class="text-[13px] font-medium text-[#999999]">Entrega desejada</dt>
+                    <dd class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-white">
+                        @(Briefing.DesiredDeliveryDate?.ToString("dd/MM/yyyy") ?? "—")
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-[13px] font-medium text-[#999999]">Aberto em</dt>
+                    <dd class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@Briefing.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+                </div>
+            </dl>
+
+            <div>
+                <p class="text-[13px] font-medium text-[#999999]">Objetivo</p>
+                <p class="mt-1 whitespace-pre-line text-[15px] leading-[1.3] tracking-[-0.15px] text-white">
+                    @(Briefing.Objective ?? "—")
+                </p>
+            </div>
+
+            <div>
+                <p class="text-[13px] font-medium text-[#999999]">Descrição</p>
+                <p class="mt-1 whitespace-pre-line text-[15px] leading-[1.3] tracking-[-0.15px] text-white">
+                    @(Briefing.Description ?? "—")
+                </p>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div role="alert" class="rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
+                    @_error
+                </div>
+            }
+
+            @if (_decision is null)
+            {
+                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-[#262626] pt-[20px]">
+                    <AuthorizePermission Permission="briefings.reject">
+                        <button type="button" @onclick="() => SelectDecision(ReviewDecision.Reject)"
+                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-white transition hover:bg-[#262626]">
+                            Rejeitar
+                        </button>
+                    </AuthorizePermission>
+
+                    <AuthorizePermission Permission="briefings.request-adjustments">
+                        <button type="button" @onclick="() => SelectDecision(ReviewDecision.RequestChanges)"
+                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-white transition hover:bg-[#262626]">
+                            Solicitar ajustes
+                        </button>
+                    </AuthorizePermission>
+
+                    <AuthorizePermission Permission="briefings.approve">
+                        <button type="button" @onclick="() => SelectDecision(ReviewDecision.Approve)"
+                                class="rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90">
+                            Aprovar
+                        </button>
+                    </AuthorizePermission>
+                </div>
+            }
+            else
+            {
+                <div class="flex flex-col gap-[15px] border-t border-[#262626] pt-[20px]">
+                    <p class="text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@ConfirmPrompt</p>
+
+                    @if (RequiresJustification)
+                    {
+                        <div class="flex flex-col gap-1">
+                            <label for="justification" class="text-[13px] font-medium text-[#999999]">Justificativa</label>
+                            <textarea id="justification" rows="4" maxlength="@Justification.MaxLength"
+                                      value="@_justification" @oninput="OnJustificationInput" disabled="@_isSubmitting"
+                                      class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50"
+                                      placeholder="Explique ao solicitante o motivo da decisão."></textarea>
+                            <p class="text-[12px] text-[#999999]">Obrigatória — o solicitante precisa saber o motivo.</p>
+                        </div>
+                    }
+
+                    <div class="flex flex-wrap items-center justify-end gap-2">
+                        <button type="button" @onclick="CancelDecision" disabled="@_isSubmitting"
+                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:opacity-50">
+                            Voltar
+                        </button>
+                        <button type="button" @onclick="ConfirmAsync" disabled="@(!CanConfirm)"
+                                class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
+                            @if (_isSubmitting)
+                            {
+                                <span class="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black"></span>
+                                <span>Enviando...</span>
+                            }
+                            else
+                            {
+                                <span>@ConfirmLabel</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>The queue row under review. The panel never mutates it — the queue reloads after a decision.</summary>
+    [Parameter, EditorRequired]
+    public PendingApprovalBriefingDto Briefing { get; set; } = default!;
+
+    /// <summary>Raised after a successful decision, carrying the message the queue shows.</summary>
+    [Parameter]
+    public EventCallback<string> OnReviewed { get; set; }
+
+    /// <summary>Raised when the reviewer closes the panel without deciding.</summary>
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+
+    private enum ReviewDecision { Approve, Reject, RequestChanges }
+
+    private ReviewDecision? _decision;
+    private string _justification = string.Empty;
+    private bool _isSubmitting;
+    private string? _error;
+
+    // Mirrors RF013 / the Justification value object: refusing to move a briefing forward always carries a
+    // reason. Approval does not — Briefing.Approve() records no justification.
+    private bool RequiresJustification => _decision is ReviewDecision.Reject or ReviewDecision.RequestChanges;
+
+    private bool CanConfirm =>
+        !_isSubmitting && (!RequiresJustification || !string.IsNullOrWhiteSpace(_justification));
+
+    private string ConfirmPrompt => _decision switch
+    {
+        ReviewDecision.Approve => "O briefing será aprovado e liberado para a criação de tarefas.",
+        ReviewDecision.Reject => "O briefing será rejeitado. Informe a justificativa.",
+        _ => "O briefing volta ao solicitante para ajustes. Informe o que precisa ser corrigido."
+    };
+
+    private string ConfirmLabel => _decision switch
+    {
+        ReviewDecision.Approve => "Confirmar aprovação",
+        ReviewDecision.Reject => "Confirmar rejeição",
+        _ => "Confirmar solicitação"
+    };
+
+    private void SelectDecision(ReviewDecision decision)
+    {
+        _error = null;
+        _justification = string.Empty;
+        _decision = decision;
+    }
+
+    private void CancelDecision()
+    {
+        _error = null;
+        _decision = null;
+    }
+
+    private void OnJustificationInput(ChangeEventArgs args) => _justification = args.Value?.ToString() ?? string.Empty;
+
+    private Task DismissAsync() => OnDismiss.InvokeAsync();
+
+    private async Task ConfirmAsync()
+    {
+        if (!CanConfirm || _decision is null)
+            return;
+
+        _error = null;
+        _isSubmitting = true;
+
+        var result = _decision switch
+        {
+            ReviewDecision.Approve => await BriefingsApi.ApproveBriefingAsync(Briefing.Id),
+            ReviewDecision.Reject => await BriefingsApi.RejectBriefingAsync(Briefing.Id, _justification),
+            _ => await BriefingsApi.RequestChangesBriefingAsync(Briefing.Id, _justification)
+        };
+
+        _isSubmitting = false;
+
+        if (result.IsFailure)
+        {
+            // Includes the 409 a briefing reviewed in another tab returns: the message stays here and the
+            // queue keeps the row until the reviewer closes the panel and the list reloads.
+            _error = result.Errors.Count > 0
+                ? string.Join(" ", result.Errors.Select(error => error.ErrorMessage))
+                : result.Error;
+            return;
+        }
+
+        await OnReviewed.InvokeAsync(SuccessMessage);
+    }
+
+    private string SuccessMessage => _decision switch
+    {
+        ReviewDecision.Approve => $"Briefing \"{Briefing.Title}\" aprovado.",
+        ReviewDecision.Reject => $"Briefing \"{Briefing.Title}\" rejeitado.",
+        _ => $"Ajustes solicitados no briefing \"{Briefing.Title}\"."
+    };
+}
