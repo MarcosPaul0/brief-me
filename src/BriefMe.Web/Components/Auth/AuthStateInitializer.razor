@@ -1,0 +1,14 @@
+@inject AuthSessionStore SessionStore
+
+@ChildContent
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await SessionStore.RestoreAsync();
+    }
+}

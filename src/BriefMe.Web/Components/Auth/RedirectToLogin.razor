@@ -1,0 +1,23 @@
+@inject NavigationManager NavigationManager
+@inject AuthSessionStore SessionStore
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Only wait for restoration once interactive: during prerendering, AuthStateInitializer's
+        // OnAfterRenderAsync (where RestoreAsync runs) never fires, so RestorationCompleted would
+        // never complete — there is genuinely no session to know about yet in that pass anyway.
+        if (RendererInfo.IsInteractive)
+        {
+            await SessionStore.RestorationCompleted;
+
+            // A session showed up while we were waiting — AuthorizeView has already (or is about
+            // to) re-evaluate and swap this component out. Don't navigate out from under it.
+            if (SessionStore.AccessToken is not null)
+                return;
+        }
+
+        var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.NavigateTo(LoginRedirectUrlBuilder.Build(relativePath));
+    }
+}
