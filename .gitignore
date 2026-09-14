@@ -1,0 +1,21 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+# Stray "bin\Debug" (literal backslash) artifact left by a cross-platform BuildHost run
+src/BriefMe.Web/bin\\Debug/
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+*.suo
+.claude/
+.specs/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Downloaded, machine-specific Tailwind CLI binary (referenced by BriefMe.Web.csproj's TailwindBuild target)
+src/BriefMe.Web/tailwindcss

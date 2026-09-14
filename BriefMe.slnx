@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BriefMe.Application/BriefMe.Application.csproj" />
+    <Project Path="src/BriefMe.Domain/BriefMe.Domain.csproj" />
+    <Project Path="src/BriefMe.Infrastructure/BriefMe.Infrastructure.csproj" />
+    <Project Path="src/BriefMe.Web/BriefMe.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BriefMe.Application.Tests/BriefMe.Application.Tests.csproj" />
+    <Project Path="tests/BriefMe.Domain.Tests/BriefMe.Domain.Tests.csproj" />
+    <Project Path="tests/BriefMe.Infrastructure.Tests/BriefMe.Infrastructure.Tests.csproj" />
+    <Project Path="tests/BriefMe.Web.Tests/BriefMe.Web.Tests.csproj" />
+  </Folder>
+</Solution>
