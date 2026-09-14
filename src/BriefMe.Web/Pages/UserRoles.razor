@@ -1,0 +1,262 @@
+@page "/usuarios/{Id:guid}/perfis"
+@attribute [Authorize(Policy = "roles.manage")]
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Application.UseCases.Roles
+@using BriefMe.Application.UseCases.Users
+@using BriefMe.Domain.Common
+@using BriefMe.Web.Contracts.Users
+@using Microsoft.AspNetCore.Authorization
+@inject IUsersApiClient UsersApi
+@inject IRolesApiClient RolesApi
+@inject AuthSessionStore SessionStore
+@inject NavigationManager NavigationManager
+
+<PageTitle>Perfis do usuário</PageTitle>
+
+<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
+    <div class="mx-auto max-w-[560px]">
+        <div>
+            <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">Perfis do usuário</h1>
+            <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
+                Defina a quais perfis de acesso este usuário pertence. Nome, e-mail e senha não são alterados aqui.
+            </p>
+        </div>
+
+        <div class="mt-[30px]">
+            @if (_isLoading)
+            {
+                <div class="flex items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-[15px] text-[#999999]">
+                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-[#262626] border-t-white"></span>
+                    <span>Carregando...</span>
+                </div>
+            }
+            else if (_notFound)
+            {
+                <div class="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-center">
+                    <p class="text-[15px] text-white">Usuário não encontrado</p>
+                    <button type="button" @onclick="NavigateToList"
+                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
+                        Voltar para a lista
+                    </button>
+                </div>
+            }
+            else if (_blockedReason is not null)
+            {
+                <div class="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] px-6 py-24 text-center">
+                    <p class="text-[15px] text-white">Não foi possível abrir o editor de perfis</p>
+                    <p class="max-w-[420px] text-[14px] leading-[1.4] text-[#999999]">@_blockedReason</p>
+                    <button type="button" @onclick="NavigateToList"
+                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
+                        Voltar para a lista
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="flex flex-col gap-[15px] rounded-[20px] border border-[#262626] bg-[#141414] p-[30px]">
+                    <div class="flex flex-col gap-[2px] rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px]">
+                        <span class="text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@_user!.FullName</span>
+                        <span class="text-[13px] font-medium tracking-[-0.13px] text-[#999999]">@_user.Email</span>
+                    </div>
+
+                    @* USRPERM-11: roles/permissions travel in the access token claims (USR-029), so a change
+                       here cannot affect the target user's open session. Say so up front, not only on save. *@
+                    <p role="note" class="rounded-[10px] border border-[#0099ff]/30 bg-[#0099ff]/10 px-[14px] py-[10px] text-[14px] leading-[1.4] text-[#999999]">
+                        As permissões viajam no token de acesso. Alterações aqui só valem para o usuário após um
+                        novo login ou a renovação automática do token — a sessão aberta dele continua com os perfis antigos.
+                    </p>
+
+                    @if (_saveError is not null)
+                    {
+                        <div role="alert" class="rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
+                            @_saveError
+                        </div>
+                    }
+                    else if (_savedMessage is not null)
+                    {
+                        <div role="status" class="rounded-[10px] border border-[#22c55e]/30 bg-[#22c55e]/10 px-[14px] py-[10px] text-[14px] text-[#22c55e]">
+                            @_savedMessage
+                        </div>
+                    }
+
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[13px] font-medium text-[#999999]">Perfis</span>
+                        <div class="flex flex-col gap-2 rounded-[10px] border border-[#262626] bg-[#1c1c1c] p-[14px]">
+                            @foreach (var role in _roles)
+                            {
+                                <label class="flex items-start gap-3 text-[15px] leading-[1.3] tracking-[-0.15px] text-white">
+                                    <input type="checkbox" checked="@_selectedRoleIds.Contains(role.RoleId)" disabled="@_isSaving"
+                                           @onchange="e => ToggleRole(role.RoleId, (bool)e.Value!)"
+                                           class="mt-[3px] h-4 w-4 rounded border-[#262626] bg-[#141414] accent-[#0099ff]" />
+                                    <span class="flex flex-col">
+                                        <span>@role.Name</span>
+                                        @if (!string.IsNullOrWhiteSpace(role.Description))
+                                        {
+                                            <span class="text-[13px] font-medium tracking-[-0.13px] text-[#999999]">@role.Description</span>
+                                        }
+                                    </span>
+                                </label>
+                            }
+                        </div>
+                        @if (_selectedRoleIds.Count == 0)
+                        {
+                            <span class="text-[13px] text-[#999999]">Sem perfis, o usuário fica autenticado mas sem nenhuma permissão.</span>
+                        }
+                    </div>
+
+                    <div class="mt-2 flex items-center justify-end gap-2">
+                        <button type="button" @onclick="NavigateToList" disabled="@_isSaving"
+                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:opacity-50">
+                            Voltar
+                        </button>
+                        <button type="button" @onclick="SaveAsync" disabled="@(_isSaving || !IsDirty)"
+                                class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
+                            @if (_isSaving)
+                            {
+                                <span class="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black"></span>
+                                <span>Salvando...</span>
+                            }
+                            else
+                            {
+                                <span>Salvar perfis</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private const string UsersViewRequiredMessage =
+        "A leitura dos dados do usuário exige a permissão users.view, além de roles.manage. Solicite o acesso e tente novamente.";
+
+    private const string RolesCatalogRequiredMessage =
+        "O catálogo de perfis não pôde ser carregado. Sem ele não é possível reconstruir os perfis atuais do usuário, e salvar removeria associações existentes.";
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _notFound;
+    private string? _blockedReason;
+    private string? _saveError;
+    private string? _savedMessage;
+
+    private UserDto? _user;
+    private IReadOnlyList<RoleListItemDto> _roles = [];
+    private HashSet<Guid> _selectedRoleIds = [];
+    private HashSet<Guid> _persistedRoleIds = [];
+
+    private bool IsDirty => !_selectedRoleIds.SetEquals(_persistedRoleIds);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No interactive circuit during prerender means no restored token yet; the API call would go out
+        // anonymous. Wait for the interactive pass and the session restore (same as Users.razor).
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _notFound = false;
+        _blockedReason = null;
+        _saveError = null;
+        _savedMessage = null;
+
+        // The role catalog is mandatory: GET /users/{id} returns role *names*, so without id+name pairs we
+        // cannot reconstruct the current selection — saving would drop the roles we failed to map
+        // (USRPERM-14). Fail closed, same as UserEditor (USR-043).
+        var rolesResult = await RolesApi.GetRolesAsync();
+        if (rolesResult.IsFailure || rolesResult.Value.Count == 0)
+        {
+            _blockedReason = RolesCatalogRequiredMessage;
+            _isLoading = false;
+            return;
+        }
+
+        _roles = [.. rolesResult.Value.OrderBy(role => role.Name, StringComparer.CurrentCulture)];
+
+        var userResult = await UsersApi.GetUserAsync(Id);
+        if (userResult.IsFailure)
+        {
+            if (userResult.Type == ErrorType.NotFound)
+                _notFound = true;
+            else if (userResult.Type == ErrorType.Forbidden)
+                _blockedReason = UsersViewRequiredMessage;
+            else
+                _blockedReason = userResult.Error;
+
+            _isLoading = false;
+            return;
+        }
+
+        _user = userResult.Value;
+        ApplyPersistedRoles(_user.Roles);
+
+        _isLoading = false;
+    }
+
+    /// <summary>
+    /// <c>GET /users/{id}</c> and <c>PUT /users/{id}/roles</c> return role <em>names</em>; the command takes
+    /// ids. Names are unique (USR-006), so the catalog bridges them. A name missing from the catalog is
+    /// ignored rather than blocking the screen.
+    /// </summary>
+    private void ApplyPersistedRoles(IReadOnlyCollection<string> roleNames)
+    {
+        _persistedRoleIds = _roles
+            .Where(role => roleNames.Contains(role.Name))
+            .Select(role => role.RoleId)
+            .ToHashSet();
+
+        _selectedRoleIds = [.. _persistedRoleIds];
+    }
+
+    private void ToggleRole(Guid roleId, bool selected)
+    {
+        if (selected)
+            _selectedRoleIds.Add(roleId);
+        else
+            _selectedRoleIds.Remove(roleId);
+
+        _saveError = null;
+        _savedMessage = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        _saveError = null;
+        _savedMessage = null;
+
+        var request = new UpdateUserRolesRequest(_selectedRoleIds.ToList());
+        var result = await UsersApi.UpdateUserRolesAsync(Id, request);
+
+        if (result.IsSuccess)
+        {
+            // Re-seed from the persisted state, so the dirty check reflects what the server actually stored.
+            _user = result.Value;
+            ApplyPersistedRoles(_user.Roles);
+            _savedMessage = "Perfis atualizados. As novas permissões valem no próximo token do usuário.";
+        }
+        else
+        {
+            // Keep the operator's toggles on failure so nothing is redone (USRPERM-09).
+            _saveError = result.Errors.Count > 0
+                ? string.Join(" ", result.Errors.Select(error => error.ErrorMessage))
+                : result.Error;
+        }
+
+        _isSaving = false;
+    }
+
+    private void NavigateToList() => NavigationManager.NavigateTo("/usuarios");
+}

@@ -1,0 +1,300 @@
+@page "/usuarios"
+@attribute [Authorize(Policy = "users.view")]
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Application.UseCases.Roles
+@using BriefMe.Application.UseCases.Users
+@using BriefMe.Domain.Enums
+@using BriefMe.Domain.Repositories
+@using BriefMe.Web.Contracts.Common
+@using Microsoft.AspNetCore.Authorization
+@inject IUsersApiClient UsersApi
+@inject AuthSessionStore SessionStore
+@inject NavigationManager NavigationManager
+
+<PageTitle>Usuários</PageTitle>
+
+<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
+    <div class="mx-auto max-w-[1100px]">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">Usuários</h1>
+                <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
+                    Gerencie os usuários e seus perfis de acesso.
+                </p>
+            </div>
+
+            <AuthorizePermission Permission="users.create">
+                <button type="button" @onclick="NavigateToNew"
+                        class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90">
+                    Novo usuário
+                </button>
+            </AuthorizePermission>
+        </div>
+
+        <form @onsubmit="ApplyFiltersAsync" @onsubmit:preventDefault="true"
+              class="mt-[30px] flex flex-wrap items-end gap-[12px]">
+            <div class="flex min-w-[220px] flex-1 flex-col gap-1">
+                <label for="search" class="text-[13px] font-medium text-[#999999]">Buscar</label>
+                <input id="search" type="search" @bind="_search" placeholder="Nome ou e-mail"
+                       class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none" />
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label for="status" class="text-[13px] font-medium text-[#999999]">Status</label>
+                <select id="status" @bind="_statusFilter"
+                        class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none">
+                    <option value="">Todos</option>
+                    <option value="@nameof(UserStatus.Active)">Ativo</option>
+                    <option value="@nameof(UserStatus.Inactive)">Inativo</option>
+                </select>
+            </div>
+
+            @if (_roles.Count > 0)
+            {
+                <div class="flex flex-col gap-1">
+                    <label for="role" class="text-[13px] font-medium text-[#999999]">Perfil</label>
+                    <select id="role" @bind="_roleFilter"
+                            class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none">
+                        <option value="">Todos</option>
+                        @foreach (var role in _roles)
+                        {
+                            <option value="@role.RoleId">@role.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="flex flex-col gap-1">
+                <label for="sort" class="text-[13px] font-medium text-[#999999]">Ordenar por</label>
+                <select id="sort" @bind="_sortFilter"
+                        class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none">
+                    <option value="FullName:false">Nome (A–Z)</option>
+                    <option value="FullName:true">Nome (Z–A)</option>
+                    <option value="Email:false">E-mail (A–Z)</option>
+                    <option value="Email:true">E-mail (Z–A)</option>
+                </select>
+            </div>
+
+            <button type="submit"
+                    class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-white transition hover:bg-[#262626]">
+                Aplicar
+            </button>
+        </form>
+
+        <div class="mt-[20px] overflow-hidden rounded-[20px] border border-[#262626] bg-[#141414]">
+            @if (_isLoading)
+            {
+                <div class="flex items-center justify-center gap-3 py-24 text-[15px] text-[#999999]">
+                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-[#262626] border-t-white"></span>
+                    <span>Carregando usuários...</span>
+                </div>
+            }
+            else if (_errorMessage is not null)
+            {
+                <div class="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                    <p class="text-[15px] text-[#ef4444]">@_errorMessage</p>
+                    <button type="button" @onclick="ReloadAsync"
+                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
+                        Tentar novamente
+                    </button>
+                </div>
+            }
+            else if (_page is null || _page.Items.Count == 0)
+            {
+                <div class="flex flex-col items-center justify-center gap-1 py-24 text-center">
+                    <p class="text-[15px] text-white">Nenhum usuário encontrado</p>
+                    <p class="text-[14px] text-[#999999]">Ajuste os filtros e tente novamente.</p>
+                </div>
+            }
+            else
+            {
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[720px] border-collapse text-left">
+                        <thead>
+                            <tr class="border-b border-[#262626] text-[13px] font-medium text-[#999999]">
+                                <th class="px-[20px] py-[14px]">Nome</th>
+                                <th class="px-[20px] py-[14px]">E-mail</th>
+                                <th class="px-[20px] py-[14px]">Status</th>
+                                <th class="px-[20px] py-[14px]">Perfis</th>
+                                <th class="px-[20px] py-[14px] text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in _page.Items)
+                            {
+                                <tr class="border-b border-[#1a1a1a] text-[15px] last:border-b-0">
+                                    <td class="px-[20px] py-[14px] text-white">@user.FullName</td>
+                                    <td class="px-[20px] py-[14px] text-[#999999]">@user.Email</td>
+                                    <td class="px-[20px] py-[14px]">
+                                        @if (user.Status == UserStatus.Active)
+                                        {
+                                            <span class="inline-flex items-center rounded-[100px] bg-[#22c55e]/10 px-[10px] py-[4px] text-[13px] font-medium text-[#22c55e]">Ativo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="inline-flex items-center rounded-[100px] bg-[#999999]/10 px-[10px] py-[4px] text-[13px] font-medium text-[#999999]">Inativo</span>
+                                        }
+                                    </td>
+                                    <td class="px-[20px] py-[14px] text-[#999999]">
+                                        @(user.Roles.Count > 0 ? string.Join(", ", user.Roles) : "—")
+                                    </td>
+                                    <td class="px-[20px] py-[14px] text-right">
+                                        <div class="flex items-center justify-end gap-3">
+                                            <AuthorizePermission Permission="users.update">
+                                                <button type="button" @onclick="() => NavigateToEdit(user.UserId)"
+                                                        class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
+                                                    Editar
+                                                </button>
+                                            </AuthorizePermission>
+                                            @* Access-only assignment (USR-045): reachable with roles.manage, no users.update needed. *@
+                                            <AuthorizePermission Permission="roles.manage">
+                                                <button type="button" @onclick="() => NavigateToRoles(user.UserId)"
+                                                        class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
+                                                    Perfis
+                                                </button>
+                                            </AuthorizePermission>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#262626] px-[20px] py-[14px]">
+                    <p class="text-[14px] text-[#999999]">
+                        Página @_page.Page de @Math.Max(_page.TotalPages, 1) • @_page.TotalCount usuário(s)
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @onclick="PreviousPageAsync" disabled="@(!CanGoPrevious)"
+                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[8px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-40">
+                            Anterior
+                        </button>
+                        <button type="button" @onclick="NextPageAsync" disabled="@(!CanGoNext)"
+                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[8px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-40">
+                            Próxima
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private const int PageSize = 20;
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private PagedResponse<UserListItemDto>? _page;
+    private IReadOnlyList<RoleListItemDto> _roles = [];
+
+    private int _currentPage = 1;
+    private string _search = string.Empty;
+    private string _statusFilter = string.Empty;
+    private string _roleFilter = string.Empty;
+    private string _sortFilter = "FullName:false";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No interactive circuit during prerender means no restored token yet; the API call would go
+        // out anonymous. Wait for the interactive pass and the session restore, same as Login.razor.
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+
+        // Best-effort: an empty roles list simply hides the role filter (USRLIST-06).
+        _roles = await UsersApi.GetRolesAsync();
+
+        await LoadAsync();
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        // Any filter/sort change restarts from page 1 to avoid landing outside the new range (USRLIST-04).
+        _currentPage = 1;
+        await LoadAsync();
+    }
+
+    private Task ReloadAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        var (sortField, sortDescending) = ParseSort(_sortFilter);
+        var query = new UserListQuery(
+            Page: _currentPage,
+            PageSize: PageSize,
+            Search: string.IsNullOrWhiteSpace(_search) ? null : _search,
+            Status: ParseStatus(_statusFilter),
+            RoleId: ParseRoleId(_roleFilter),
+            SortField: sortField,
+            SortDescending: sortDescending);
+
+        var result = await UsersApi.GetUsersAsync(query);
+
+        if (result.IsSuccess)
+        {
+            _page = result.Value;
+            _currentPage = _page.Page;
+        }
+        else
+        {
+            _page = null;
+            _errorMessage = result.Error;
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private bool CanGoPrevious => _page is { Page: > 1 };
+
+    private bool CanGoNext => _page is not null && _page.Page < _page.TotalPages;
+
+    private async Task PreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+            return;
+
+        _currentPage = _page!.Page - 1;
+        await LoadAsync();
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (!CanGoNext)
+            return;
+
+        _currentPage = _page!.Page + 1;
+        await LoadAsync();
+    }
+
+    // Blazor user screens live under /usuarios to avoid colliding with the /users REST API namespace
+    // (USR-034). USR-043 will own /usuarios/novo and /usuarios/{id}.
+    private void NavigateToNew() => NavigationManager.NavigateTo("/usuarios/novo");
+
+    private void NavigateToEdit(Guid userId) => NavigationManager.NavigateTo($"/usuarios/{userId}");
+
+    private void NavigateToRoles(Guid userId) => NavigationManager.NavigateTo($"/usuarios/{userId}/perfis");
+
+    private static UserStatus? ParseStatus(string value) =>
+        Enum.TryParse<UserStatus>(value, out var status) ? status : null;
+
+    private static Guid? ParseRoleId(string value) =>
+        Guid.TryParse(value, out var roleId) ? roleId : null;
+
+    private static (UserSortField Field, bool Descending) ParseSort(string value)
+    {
+        var parts = value.Split(':');
+        var field = parts.Length > 0 && Enum.TryParse<UserSortField>(parts[0], out var parsed)
+            ? parsed
+            : UserSortField.FullName;
+        var descending = parts.Length > 1 && bool.TryParse(parts[1], out var desc) && desc;
+        return (field, descending);
+    }
+}
