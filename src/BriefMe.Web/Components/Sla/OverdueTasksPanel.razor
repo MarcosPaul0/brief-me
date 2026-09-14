@@ -1,0 +1,199 @@
+@* BRF-046 (RF029) — the task half of the SLA dashboard.
+   Gated on tasks.view-all: the list crosses every designer's workload, which is exactly what
+   tasks.view-assigned (the board of BRF-033) does not open. A caller without it sees no panel — not an
+   error where the list would be.
+   Loads, pages and fails on its own: the briefing panel beside it is a different read with a different
+   permission, and a fault in one must not blank the other. *@
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Web.Contracts.Common
+@inject ITasksApiClient TasksApi
+@inject AuthSessionStore SessionStore
+
+<AuthorizePermission Permission="tasks.view-all">
+    <section class="overflow-hidden rounded-[20px] border border-[#262626] bg-[#141414]">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#262626] px-[20px] py-[16px]">
+            <div>
+                <h2 class="text-[22px] font-bold leading-[1.2] tracking-[-0.8px] text-white">Tarefas atrasadas</h2>
+                <p class="mt-1 text-[14px] leading-[1.4] tracking-[-0.14px] text-[#999999]">
+                    Do atraso mais antigo para o mais recente.
+                </p>
+            </div>
+            @if (_page is not null)
+            {
+                <p class="text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
+                    <span class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">@_page.TotalCount</span>
+                    tarefa(s)
+                </p>
+            }
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="flex items-center justify-center gap-3 py-24 text-[15px] text-[#999999]">
+                <span class="h-4 w-4 animate-spin rounded-full border-2 border-[#262626] border-t-white"></span>
+                <span>Carregando tarefas atrasadas...</span>
+            </div>
+        }
+        else if (_errorMessage is not null)
+        {
+            <div class="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                <p class="text-[15px] text-[#ef4444]">@_errorMessage</p>
+                <button type="button" @onclick="ReloadAsync"
+                        class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
+                    Tentar novamente
+                </button>
+            </div>
+        }
+        else if (_page is null || _page.Items.Count == 0)
+        {
+            <div class="flex flex-col items-center justify-center gap-1 py-24 text-center">
+                <p class="text-[15px] text-white">Nenhuma tarefa atrasada</p>
+                <p class="text-[14px] text-[#999999]">Todos os prazos em execução estão em dia.</p>
+            </div>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[960px] border-collapse text-left">
+                    <thead>
+                        <tr class="border-b border-[#262626] text-[13px] font-medium text-[#999999]">
+                            <th class="px-[20px] py-[14px]">Tarefa</th>
+                            <th class="px-[20px] py-[14px]">Briefing</th>
+                            <th class="px-[20px] py-[14px]">Responsável</th>
+                            <th class="px-[20px] py-[14px]">Status</th>
+                            <th class="px-[20px] py-[14px]">Prioridade</th>
+                            <th class="px-[20px] py-[14px]">Prazo</th>
+                            <th class="px-[20px] py-[14px]">Atraso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var task in _page.Items)
+                        {
+                            <tr class="border-b border-[#1a1a1a] text-[15px] last:border-b-0">
+                                <td class="px-[20px] py-[14px]">
+                                    @* The row is the index entry; the record — comments, entregas, prazo — is BRF-034. *@
+                                    <a href="/tarefas/@task.Id" class="text-white transition hover:text-[#0099ff]">@task.Title</a>
+                                </td>
+                                <td class="px-[20px] py-[14px] text-[#999999]">@(task.BriefingTitle ?? "—")</td>
+                                <td class="px-[20px] py-[14px] text-[#999999]">@(task.DesignerName ?? "—")</td>
+                                <td class="px-[20px] py-[14px]">
+                                    <span class="inline-flex items-center rounded-[100px] px-[10px] py-[4px] text-[13px] font-medium @BriefingTaskLabels.StatusBadgeClass(task.Status)">
+                                        @BriefingTaskLabels.Status(task.Status)
+                                    </span>
+                                </td>
+                                <td class="px-[20px] py-[14px] text-[#999999]">@BriefingLabels.Priority(task.Priority)</td>
+                                <td class="px-[20px] py-[14px] text-[#999999]">
+                                    @(task.Deadline?.ToString("dd/MM/yyyy") ?? "—")
+                                </td>
+                                <td class="px-[20px] py-[14px] font-medium @OverdueLabels.SeverityClass(task.OverdueSince, _now)">
+                                    @OverdueLabels.Elapsed(task.OverdueSince, _now)
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#262626] px-[20px] py-[14px]">
+                <p class="text-[14px] text-[#999999]">
+                    Página @_page.Page de @Math.Max(_page.TotalPages, 1) • @_page.TotalCount tarefa(s) atrasada(s)
+                </p>
+                <div class="flex items-center gap-2">
+                    <button type="button" @onclick="PreviousPageAsync" disabled="@(!CanGoPrevious)"
+                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[8px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-40">
+                        Anterior
+                    </button>
+                    <button type="button" @onclick="NextPageAsync" disabled="@(!CanGoNext)"
+                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[8px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-40">
+                        Próxima
+                    </button>
+                </div>
+            </div>
+        }
+    </section>
+</AuthorizePermission>
+
+@code {
+    private const int PageSize = 20;
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private PagedResponse<OverdueTaskDto>? _page;
+
+    private int _currentPage = 1;
+
+    /// <summary>
+    /// Reference instant the delays on screen are measured against — read once per load so every row of a
+    /// page is compared to the same clock, as the monitor's own pass is (BRF-043).
+    /// </summary>
+    private DateTime _now = DateTime.UtcNow;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No interactive circuit during prerender means no restored token yet — the call would go out
+        // anonymous. Same guard as TaskBoard.razor / BriefingApprovals.razor.
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+
+        await LoadAsync();
+    }
+
+    private Task ReloadAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        var result = await TasksApi.GetOverdueTasksAsync(_currentPage, PageSize);
+
+        if (result.IsSuccess)
+        {
+            _page = result.Value;
+            _currentPage = _page.Page;
+            _now = DateTime.UtcNow;
+
+            // Items replanned or approved elsewhere can empty the last page; step back so the reader never
+            // lands on a valid-but-empty page.
+            if (_page.Items.Count == 0 && _currentPage > 1)
+            {
+                _currentPage--;
+                await LoadAsync();
+                return;
+            }
+        }
+        else
+        {
+            _page = null;
+            _errorMessage = result.Error;
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private bool CanGoPrevious => _page is { Page: > 1 };
+
+    private bool CanGoNext => _page is not null && _page.Page < _page.TotalPages;
+
+    private async Task PreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+            return;
+
+        _currentPage = _page!.Page - 1;
+        await LoadAsync();
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (!CanGoNext)
+            return;
+
+        _currentPage = _page!.Page + 1;
+        await LoadAsync();
+    }
+}
