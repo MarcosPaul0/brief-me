@@ -1,0 +1,24 @@
+@*
+    Card de navegação da Home. Renderiza apenas quando o usuário atende à policy informada.
+*@
+
+<AuthorizeView Policy="@Policy" Context="_">
+    <a href="@Href" class="flex flex-col gap-1 rounded-[20px] border border-[#262626] bg-[#141414] p-[24px] transition hover:bg-[#1c1c1c]">
+        <span class="text-[15px] font-medium tracking-[-0.15px] text-white">@Title</span>
+        <span class="text-[14px] leading-[1.4] tracking-[-0.14px] text-[#999999]">@Description</span>
+    </a>
+</AuthorizeView>
+
+@code {
+    [Parameter, EditorRequired]
+    public required string Policy { get; set; }
+
+    [Parameter, EditorRequired]
+    public required string Href { get; set; }
+
+    [Parameter, EditorRequired]
+    public required string Title { get; set; }
+
+    [Parameter, EditorRequired]
+    public required string Description { get; set; }
+}

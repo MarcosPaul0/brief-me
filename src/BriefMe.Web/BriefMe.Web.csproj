@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BriefMe.Application\BriefMe.Application.csproj" />
+    <ProjectReference Include="..\BriefMe.Infrastructure\BriefMe.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <Target Name="TailwindBuild" BeforeTargets="ResolveStaticWebAssetsConfiguration" Inputs="Styles/app.tailwind.css;Components/**/*.razor" Outputs="wwwroot/app.css">
+    <Exec Command="./tailwindcss -i ./Styles/app.tailwind.css -o ./wwwroot/app.css" />
+    <ItemGroup>
+      <Content Include="wwwroot/app.css" Condition="!@(Content-&gt;AnyHaveMetadataValue('Identity', 'wwwroot/app.css'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

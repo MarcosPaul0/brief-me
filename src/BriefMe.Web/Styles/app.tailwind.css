@@ -1,0 +1,45 @@
+@import url(lib/bootstrap/dist/css/bootstrap.min.css) layer(bootstrap);
+@import "tailwindcss";
+
+/* --- Design system fonts (self-hosted) --- */
+
+/* Body: Inter Variable (open source) */
+@font-face {
+    font-family: 'Inter Variable';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('fonts/InterVariable.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter Variable';
+    font-style: italic;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('fonts/InterVariable-Italic.woff2') format('woff2');
+}
+
+/*
+ * Display: GT Walsheim Medium is proprietary — no free license available.
+ * Mona Sans (open source, github/mona-sans) is the substitute recommended
+ * by the design system spec. If the GT Walsheim license is added, drop the
+ * webfont in fonts/ and it wins ahead of Mona Sans in the stack below.
+ */
+@font-face {
+    font-family: 'Mona Sans';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('fonts/MonaSans.woff2') format('woff2');
+}
+
+:root {
+    --font-display: 'GT Walsheim Medium', 'Mona Sans', 'Inter Variable', sans-serif;
+    --font-body: 'Inter Variable', 'Inter', system-ui, sans-serif;
+}
+
+html, body {
+    font-family: var(--font-body);
+    /* Inter character variants — the design system's body voice depends on these */
+    font-feature-settings: 'cv01', 'cv05', 'cv09', 'cv11', 'ss03', 'ss07';
+}
