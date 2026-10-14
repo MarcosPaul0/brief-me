@@ -1,12 +1,14 @@
 using BriefMe.Application.Abstractions.Messaging;
 using BriefMe.Application.Abstractions;
 using BriefMe.Application.Common.Dtos;
+using BriefMe.Application.UseCases.Briefings.AcceptBriefingDelivery;
 using BriefMe.Application.UseCases.Briefings.CancelBriefing;
 using BriefMe.Application.UseCases.Briefings.CreateBriefing;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
-using BriefMe.Application.UseCases.Briefings.SubmitBriefingForApproval;
+using BriefMe.Application.UseCases.Briefings.RequestBriefingChanges;
+using BriefMe.Application.UseCases.Briefings.SubmitBriefing;
 using BriefMe.Application.UseCases.Briefings;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Enums;
@@ -100,29 +102,41 @@ public class BriefingsControllerTests
     private static void Authenticate(HttpClient client, string token) =>
         client.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
-    private static BriefingDto SampleDto(Guid id) => new(
-        id,
-        "Campanha de lançamento",
+    private static BriefingDto SampleDto(Guid id, BriefingStatus status = BriefingStatus.Draft) => new(
+        Id: id,
+        Title: "Campanha de lançamento",
         Description: null,
         Objective: null,
         RequestingArea: null,
         DesiredDeliveryDate: null,
-        Priority.Medium,
+        Priority: Priority.Medium,
         CategoryId: Guid.NewGuid(),
         RequesterId: Guid.NewGuid(),
-        BriefingStatus.Draft);
+        DesignerId: null,
+        Status: status,
+        DeliveryNote: null,
+        DeliveredAt: null,
+        ChangeRequestReason: null);
 
     private static BriefingDetailDto SampleDetailDto(Guid id) => new(
-        id,
-        "Campanha de lançamento",
+        Id: id,
+        Title: "Campanha de lançamento",
         Description: null,
         Objective: null,
         RequestingArea: null,
         DesiredDeliveryDate: null,
-        Priority.Medium,
+        Priority: Priority.Medium,
         CategoryId: Guid.NewGuid(),
+        CategoryName: "Evento",
         RequesterId: Guid.NewGuid(),
-        BriefingStatus.Draft);
+        RequesterName: "Rita",
+        DesignerId: null,
+        DesignerName: null,
+        Status: BriefingStatus.Submitted,
+        DeliveryNote: null,
+        DeliveredAt: null,
+        ChangeRequestReason: null,
+        CreatedAt: DateTime.UtcNow);
 
     [Fact]
     public async Task Create_WhenCallerIsRequester_ReturnsCreatedWithLocation()
@@ -221,7 +235,7 @@ public class BriefingsControllerTests
         // Arrange
         var briefingId = Guid.NewGuid();
         var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<SubmitBriefingForApprovalCommand>(), It.IsAny<CancellationToken>()))
+        senderMock.Setup(s => s.Send(It.IsAny<SubmitBriefingCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Success(SampleDto(briefingId) with { Status = BriefingStatus.Submitted }));
 
         using var host = await StartHostAsync(senderMock.Object);
@@ -297,14 +311,14 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task GetById_WhenCallerIsNotRequester_ReturnsForbidden()
+    public async Task GetById_WhenCallerIsAdmin_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.GetAsync($"/briefings/{Guid.NewGuid()}");
@@ -320,10 +334,10 @@ public class BriefingsControllerTests
         // Arrange
         GetBriefingsByRequesterQuery? capturedQuery = null;
         var categoryId = Guid.NewGuid();
-        var pagedResult = PagedDto<BriefingDto>.Create([], page: 2, pageSize: 5, totalCount: 0);
+        var pagedResult = PagedDto<BriefingListItemDto>.Create([], page: 2, pageSize: 5, totalCount: 0);
         var senderMock = new Mock<ISender>();
         senderMock.Setup(s => s.Send(It.IsAny<GetBriefingsByRequesterQuery>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest<Result<PagedDto<BriefingDto>>>, CancellationToken>((q, _) => capturedQuery = (GetBriefingsByRequesterQuery)q)
+            .Callback<IRequest<Result<PagedDto<BriefingListItemDto>>>, CancellationToken>((q, _) => capturedQuery = (GetBriefingsByRequesterQuery)q)
             .ReturnsAsync(Result.Success(pagedResult));
 
         using var host = await StartHostAsync(senderMock.Object);
@@ -358,5 +372,84 @@ public class BriefingsControllerTests
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         senderMock.Verify(s => s.Send(It.IsAny<GetBriefingsByRequesterQuery>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetById_WhenCallerIsDesigner_ReachesTheHandler()
+    {
+        // Arrange
+        var briefingId = Guid.NewGuid();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetBriefingByIdQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(SampleDetailDto(briefingId)));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
+
+        // Act
+        var response = await client.GetAsync($"/briefings/{briefingId}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Accept_WhenCallerIsRequester_ReturnsOkWithCompletedBriefing()
+    {
+        // Arrange
+        var briefingId = Guid.NewGuid();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.Is<AcceptBriefingDeliveryCommand>(c => c.BriefingId == briefingId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(SampleDto(briefingId, BriefingStatus.Completed)));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
+
+        // Act
+        var response = await client.PostAsync($"/briefings/{briefingId}/accept", null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Accept_WhenCallerIsDesigner_ReturnsForbidden()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
+
+        // Act
+        var response = await client.PostAsync($"/briefings/{Guid.NewGuid()}/accept", null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task RequestChanges_WhenCallerIsRequester_ForwardsTheReason()
+    {
+        // Arrange
+        var briefingId = Guid.NewGuid();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<RequestBriefingChangesCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(SampleDto(briefingId, BriefingStatus.InProgress)));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
+
+        // Act
+        await client.PostAsJsonAsync($"/briefings/{briefingId}/request-changes", new RequestBriefingChangesRequest("Use the new logo"));
+
+        // Assert
+        senderMock.Verify(s => s.Send(
+            It.Is<RequestBriefingChangesCommand>(c => c.BriefingId == briefingId && c.Reason == "Use the new logo"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

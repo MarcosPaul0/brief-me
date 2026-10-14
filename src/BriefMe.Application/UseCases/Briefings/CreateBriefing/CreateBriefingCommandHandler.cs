@@ -9,8 +9,8 @@ using BriefMe.Domain.Repositories;
 namespace BriefMe.Application.UseCases.Briefings.CreateBriefing;
 
 /// <summary>
-/// Creates a briefing in <c>Draft</c> for the authenticated requester and persists it (RF004, RF006).
-/// Validates that the given category exists and is active (RF040) before touching the aggregate.
+/// Creates a briefing in <c>Draft</c> for the authenticated requester. Checks that the category exists and is
+/// active before touching the aggregate.
 /// </summary>
 public sealed class CreateBriefingCommandHandler(
     IBriefingRepository briefingRepository,

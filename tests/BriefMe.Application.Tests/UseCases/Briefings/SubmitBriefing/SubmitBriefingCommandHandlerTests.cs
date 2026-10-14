@@ -1,5 +1,5 @@
 using BriefMe.Application.Abstractions;
-using BriefMe.Application.UseCases.Briefings.SubmitBriefingForApproval;
+using BriefMe.Application.UseCases.Briefings.SubmitBriefing;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
@@ -7,19 +7,19 @@ using BriefMe.Domain.Repositories;
 using FluentAssertions;
 using Moq;
 
-namespace BriefMe.Application.Tests.UseCases.Briefings.SubmitBriefingForApproval;
+namespace BriefMe.Application.Tests.UseCases.Briefings.SubmitBriefing;
 
-public class SubmitBriefingForApprovalCommandHandlerTests
+public class SubmitBriefingCommandHandlerTests
 {
     private readonly Mock<IBriefingRepository> _briefingRepositoryMock = new();
     private readonly Mock<ICurrentUser> _currentUserMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Guid _requesterId = Guid.NewGuid();
-    private readonly SubmitBriefingForApprovalCommandHandler _handler;
+    private readonly SubmitBriefingCommandHandler _handler;
 
-    public SubmitBriefingForApprovalCommandHandlerTests()
+    public SubmitBriefingCommandHandlerTests()
     {
-        _handler = new SubmitBriefingForApprovalCommandHandler(
+        _handler = new SubmitBriefingCommandHandler(
             _briefingRepositoryMock.Object,
             _currentUserMock.Object,
             _unitOfWorkMock.Object);
@@ -42,7 +42,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
         typeof(Briefing).GetProperty(nameof(Briefing.Status))!.SetValue(briefing, status);
 
     [Fact]
-    public async Task Handle_WhenDraftHasAllMandatoryFields_TransitionsToAwaitingApproval()
+    public async Task Handle_WhenDraftHasAllMandatoryFields_TransitionsToSubmitted()
     {
         // Arrange
         var briefing = CompleteDraft();
@@ -51,7 +51,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
             .ReturnsAsync(briefing);
 
         // Act
-        var result = await _handler.Handle(new SubmitBriefingForApprovalCommand(briefing.Id), default);
+        var result = await _handler.Handle(new SubmitBriefingCommand(briefing.Id), default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -68,7 +68,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
             .ReturnsAsync(briefing);
 
         // Act
-        await _handler.Handle(new SubmitBriefingForApprovalCommand(briefing.Id), default);
+        await _handler.Handle(new SubmitBriefingCommand(briefing.Id), default);
 
         // Assert
         _briefingRepositoryMock.Verify(r => r.Update(briefing), Times.Once);
@@ -85,7 +85,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
             .ReturnsAsync(briefing);
 
         // Act
-        var result = await _handler.Handle(new SubmitBriefingForApprovalCommand(briefing.Id), default);
+        var result = await _handler.Handle(new SubmitBriefingCommand(briefing.Id), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -103,7 +103,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
             .ReturnsAsync((Briefing?)null);
 
         // Act
-        var result = await _handler.Handle(new SubmitBriefingForApprovalCommand(Guid.NewGuid()), default);
+        var result = await _handler.Handle(new SubmitBriefingCommand(Guid.NewGuid()), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -123,7 +123,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
         _currentUserMock.Setup(u => u.UserId).Returns(Guid.NewGuid().ToString());
 
         // Act
-        var result = await _handler.Handle(new SubmitBriefingForApprovalCommand(briefing.Id), default);
+        var result = await _handler.Handle(new SubmitBriefingCommand(briefing.Id), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -132,7 +132,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenBriefingAlreadyAwaitingApproval_ReturnsConflict()
+    public async Task Handle_WhenBriefingAlreadySubmitted_ReturnsConflict()
     {
         // Arrange
         var briefing = CompleteDraft();
@@ -142,7 +142,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
             .ReturnsAsync(briefing);
 
         // Act
-        var result = await _handler.Handle(new SubmitBriefingForApprovalCommand(briefing.Id), default);
+        var result = await _handler.Handle(new SubmitBriefingCommand(briefing.Id), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -157,7 +157,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
         _currentUserMock.Setup(u => u.UserId).Returns((string?)null);
 
         // Act
-        var result = await _handler.Handle(new SubmitBriefingForApprovalCommand(Guid.NewGuid()), default);
+        var result = await _handler.Handle(new SubmitBriefingCommand(Guid.NewGuid()), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();

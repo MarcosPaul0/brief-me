@@ -5,9 +5,8 @@ using BriefMe.Application.UseCases.Briefings;
 namespace BriefMe.Application.UseCases.Briefings.GetBriefingById;
 
 /// <summary>
-/// Returns a single briefing owned by the authenticated requester (BRF-013, supports RF009's edit form).
-/// The requester comes from <c>ICurrentUser</c>; a briefing owned by someone else yields <c>Forbidden</c>.
-/// Broad-view (Manager/Admin) is out of scope here — same decision as BRF-008/BRF-009.
+/// A single briefing with the names its detail screen shows. Visible to its requester, to any designer while
+/// it is in the queue, and to the designer who claimed it.
 /// </summary>
 /// <remarks>
 /// Returns <see cref="BriefingDetailDto"/>, not <see cref="BriefingDto"/>: the edit form renders the file

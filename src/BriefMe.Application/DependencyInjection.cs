@@ -1,6 +1,7 @@
 using System.Reflection;
 using BriefMe.Application.Abstractions.Messaging;
 using BriefMe.Application.Behaviors;
+using BriefMe.Application.Common.Briefings;
 using BriefMe.Application.Messaging;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ public static class DependencyInjection
 
         services.AddScoped<ISender, Sender>();
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        services.AddScoped<BriefingComplementsLoader>();
 
         RegisterHandlers(services, assembly, typeof(IRequestHandler<,>));
 

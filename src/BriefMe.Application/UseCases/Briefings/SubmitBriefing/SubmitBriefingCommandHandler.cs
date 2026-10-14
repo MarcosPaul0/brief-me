@@ -7,21 +7,18 @@ using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
 
-namespace BriefMe.Application.UseCases.Briefings.SubmitBriefingForApproval;
+namespace BriefMe.Application.UseCases.Briefings.SubmitBriefing;
 
 /// <summary>
-/// Transitions a briefing to <c>AwaitingApproval</c> (RF007, BRF-007). Loads the aggregate, checks that the
-/// authenticated user owns it, then delegates the transition — including RF005 completeness — to
-/// <c>Briefing.SubmitForApproval()</c>, which raises <c>BriefingSubmittedForApproval</c> on success.
-/// Category-checklist validation (RF063) is deferred to BRF-093; when <c>IChecklistValidator</c> exists it is
-/// applied here before persisting the transition.
+/// Sends the requester's draft to the designer queue. The completeness rules live in
+/// <c>Briefing.Submit()</c>, which answers missing fields as a validation failure.
 /// </summary>
-public sealed class SubmitBriefingForApprovalCommandHandler(
+public sealed class SubmitBriefingCommandHandler(
     IBriefingRepository briefingRepository,
     ICurrentUser currentUser,
-    IUnitOfWork unitOfWork) : ICommandHandler<SubmitBriefingForApprovalCommand, BriefingDto>
+    IUnitOfWork unitOfWork) : ICommandHandler<SubmitBriefingCommand, BriefingDto>
 {
-    public async Task<Result<BriefingDto>> Handle(SubmitBriefingForApprovalCommand request, CancellationToken cancellationToken)
+    public async Task<Result<BriefingDto>> Handle(SubmitBriefingCommand request, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(currentUser.UserId, out var requesterId))
             return Result.Unauthorized<BriefingDto>(CommonErrors.UserNotAuthenticated);

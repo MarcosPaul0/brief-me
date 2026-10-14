@@ -4,7 +4,8 @@ using BriefMe.Domain.Enums;
 namespace BriefMe.Application.Common.Dtos;
 
 /// <summary>
-/// Output representation of a briefing for outer layers (BRF-006). Never exposes the domain entity directly.
+/// A briefing as returned by every command that changes one. <see cref="DesignerId"/>, the delivery fields
+/// and <see cref="ChangeRequestReason"/> are null until the briefing reaches the stage that fills them.
 /// </summary>
 public sealed record BriefingDto(
     Guid Id,
@@ -16,7 +17,11 @@ public sealed record BriefingDto(
     Priority Priority,
     Guid CategoryId,
     Guid RequesterId,
-    BriefingStatus Status)
+    Guid? DesignerId,
+    BriefingStatus Status,
+    string? DeliveryNote,
+    DateTime? DeliveredAt,
+    string? ChangeRequestReason)
 {
     public static BriefingDto FromBriefing(Briefing briefing)
     {
@@ -30,6 +35,10 @@ public sealed record BriefingDto(
             briefing.Priority,
             briefing.CategoryId,
             briefing.RequesterId,
-            briefing.Status);
+            briefing.DesignerId,
+            briefing.Status,
+            briefing.DeliveryNote,
+            briefing.DeliveredAt,
+            briefing.ChangeRequestReason?.Value);
     }
 }

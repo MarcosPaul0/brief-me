@@ -4,10 +4,8 @@ using FluentValidation;
 namespace BriefMe.Application.UseCases.Briefings.CreateBriefing;
 
 /// <summary>
-/// Presence validation of the fields needed to save the draft (BRF-006). Validates presence only, not
-/// completeness for approval — RF005 completeness is required on submission (BRF-007), and the category
-/// checklist in BRF-093. Therefore Description/Objective/RequestingArea/DesiredDeliveryDate are optional in
-/// the draft.
+/// Presence validation of the fields needed to save a draft. Completeness is only required on submission
+/// (<c>Briefing.Submit()</c>), so description, objective, area and date are optional here.
 /// </summary>
 public sealed class CreateBriefingCommandValidator : AbstractValidator<CreateBriefingCommand>
 {

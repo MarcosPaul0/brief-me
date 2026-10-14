@@ -4,8 +4,7 @@ using FluentValidation;
 namespace BriefMe.Application.UseCases.Briefings.EditBriefing;
 
 /// <summary>
-/// Presence validation for editing a briefing (BRF-009). Mirrors the draft rules (BRF-006): Title required,
-/// valid Priority. State-transition legality (Draft/AwaitingApproval) is a domain invariant enforced by
+/// Presence validation for editing a briefing. Which states allow editing is a domain invariant enforced by
 /// <c>Briefing.Edit()</c> and guarded in the handler, not here.
 /// </summary>
 public sealed class EditBriefingCommandValidator : AbstractValidator<EditBriefingCommand>

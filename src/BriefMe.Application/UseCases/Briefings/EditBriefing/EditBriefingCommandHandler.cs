@@ -10,10 +10,7 @@ using BriefMe.Domain.Repositories;
 namespace BriefMe.Application.UseCases.Briefings.EditBriefing;
 
 /// <summary>
-/// Edits a briefing owned by the authenticated requester (RF009, BRF-009). Loads the aggregate, checks
-/// ownership, guards the editable states, then delegates the mutation to <c>Briefing.Edit()</c>. Editing is
-/// allowed in <c>Draft</c>, <c>AwaitingApproval</c> and <c>ChangesRequested</c> — the state a review returns
-/// the briefing to precisely so it can be corrected (RF014, BRF-018); other states yield an
+/// Edits a briefing owned by the authenticated requester. A claimed or closed briefing yields an
 /// <c>EditNotAllowed</c> conflict.
 /// </summary>
 public sealed class EditBriefingCommandHandler(

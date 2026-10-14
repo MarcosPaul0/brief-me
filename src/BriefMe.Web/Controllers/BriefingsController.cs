@@ -1,10 +1,12 @@
 using BriefMe.Application.Abstractions.Messaging;
+using BriefMe.Application.UseCases.Briefings.AcceptBriefingDelivery;
 using BriefMe.Application.UseCases.Briefings.CancelBriefing;
 using BriefMe.Application.UseCases.Briefings.CreateBriefing;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
-using BriefMe.Application.UseCases.Briefings.SubmitBriefingForApproval;
+using BriefMe.Application.UseCases.Briefings.RequestBriefingChanges;
+using BriefMe.Application.UseCases.Briefings.SubmitBriefing;
 using BriefMe.Domain.Enums;
 using BriefMe.Web.Contracts.Briefings;
 using BriefMe.Web.Extensions;
@@ -14,17 +16,20 @@ using Microsoft.AspNetCore.Mvc;
 namespace BriefMe.Web.Controllers;
 
 /// <summary>
-/// Exposes the briefing use cases over HTTP (BRF-012, RF004–RF010) plus the review transitions
-/// approve/reject/request-changes (BRF-019, RF011–RF014). A thin controller: it only translates
-/// request → command/query, dispatches via <see cref="ISender"/> and maps <c>Result&lt;T&gt;</c> to the HTTP
-/// response. Ownership and state invariants live in the handlers; this layer only gates on permissions.
+/// The briefing flow over HTTP. Requester actions (write, submit, cancel, accept, send back) and designer
+/// actions (queue, claim, deliver) are gated per action by role; whether the caller owns or is assigned to
+/// <b>this</b> briefing is the handler's answer (403).
 /// </summary>
 [ApiController]
 [Route("briefings")]
-[Authorize(Roles = nameof(UserRole.Requester))]
+[Authorize]
 public sealed class BriefingsController(ISender sender) : ControllerBase
 {
+    private const string Requester = nameof(UserRole.Requester);
+    private const string Designer = nameof(UserRole.Designer);
+
     [HttpPost]
+    [Authorize(Roles = Requester)]
     public async Task<IActionResult> Create(CreateBriefingRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateBriefingCommand(
@@ -44,6 +49,7 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = Requester)]
     public async Task<IActionResult> Update(Guid id, UpdateBriefingRequest request, CancellationToken cancellationToken)
     {
         var command = new EditBriefingCommand(
@@ -61,14 +67,16 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpPost("{id:guid}/submit")]
+    [Authorize(Roles = Requester)]
     public async Task<IActionResult> Submit(Guid id, CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new SubmitBriefingForApprovalCommand(id), cancellationToken);
+        var result = await sender.Send(new SubmitBriefingCommand(id), cancellationToken);
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao submeter briefing para aprovação");
     }
 
     [HttpPost("{id:guid}/cancel")]
+    [Authorize(Roles = Requester)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new CancelBriefingCommand(id), cancellationToken);
@@ -76,7 +84,9 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao cancelar briefing");
     }
 
+    /// <summary>Open to the owner, the assigned designer, and any designer while the briefing is queued.</summary>
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = Requester + "," + Designer)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetBriefingByIdQuery(id), cancellationToken);
@@ -85,6 +95,7 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = Requester)]
     public async Task<IActionResult> GetMyBriefings(
         [FromQuery] BriefingStatus? status,
         [FromQuery] Guid? categoryId,
@@ -96,5 +107,23 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
         var result = await sender.Send(query, cancellationToken);
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar briefings");
+    }
+
+    [HttpPost("{id:guid}/accept")]
+    [Authorize(Roles = Requester)]
+    public async Task<IActionResult> Accept(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new AcceptBriefingDeliveryCommand(id), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao aceitar a entrega");
+    }
+
+    [HttpPost("{id:guid}/request-changes")]
+    [Authorize(Roles = Requester)]
+    public async Task<IActionResult> RequestChanges(Guid id, RequestBriefingChangesRequest request, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new RequestBriefingChangesCommand(id, request.Reason), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao solicitar ajustes");
     }
 }

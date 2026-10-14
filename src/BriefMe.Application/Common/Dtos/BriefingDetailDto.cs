@@ -1,19 +1,13 @@
+using BriefMe.Application.Common.Briefings;
 using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
 
 namespace BriefMe.Application.Common.Dtos;
 
 /// <summary>
-/// A single briefing read with its own attachments (RF005) — what the create/edit screen needs to render the
-/// form <b>and</b> the file list in one round trip. A superset of <see cref="BriefingDto"/>, which stays the
-/// return of every command: making that one carry attachments would force ten handlers to load a collection
-/// their callers never read.
+/// A single briefing with the names the detail screen shows next to its ids. The names are nullable
+/// because a lookup can miss (a removed user, say) — the screen then shows a dash instead of failing.
 /// </summary>
-/// <remarks>
-/// <see cref="Attachments"/> holds briefing material only. Task deliveries live in the same table and hang off
-/// the same aggregate, but they belong to the task screen (BRF-034) — the repository read behind this DTO
-/// filters them out, so an empty list here means "no reference files", never "no deliveries".
-/// </remarks>
 public sealed record BriefingDetailDto(
     Guid Id,
     string Title,
@@ -23,15 +17,18 @@ public sealed record BriefingDetailDto(
     DateOnly? DesiredDeliveryDate,
     Priority Priority,
     Guid CategoryId,
+    string? CategoryName,
     Guid RequesterId,
-    BriefingStatus Status)
+    string? RequesterName,
+    Guid? DesignerId,
+    string? DesignerName,
+    BriefingStatus Status,
+    string? DeliveryNote,
+    DateTime? DeliveredAt,
+    string? ChangeRequestReason,
+    DateTime CreatedAt)
 {
-    /// <summary>
-    /// Maps an aggregate loaded through <c>IBriefingRepository.GetByIdWithAttachmentsAsync</c>. The
-    /// attachments are the briefing's own children, not supplementary lookup data, so they are read off the
-    /// entity rather than passed in — the factory stays pure either way.
-    /// </summary>
-    public static BriefingDetailDto FromBriefing(Briefing briefing)
+    public static BriefingDetailDto FromBriefingWithComplements(Briefing briefing, BriefingComplements complements)
     {
         return new(
             briefing.Id,
@@ -42,7 +39,15 @@ public sealed record BriefingDetailDto(
             briefing.DesiredDeliveryDate,
             briefing.Priority,
             briefing.CategoryId,
+            complements.CategoryName(briefing.CategoryId),
             briefing.RequesterId,
-            briefing.Status);
+            complements.UserName(briefing.RequesterId),
+            briefing.DesignerId,
+            complements.UserName(briefing.DesignerId),
+            briefing.Status,
+            briefing.DeliveryNote,
+            briefing.DeliveredAt,
+            briefing.ChangeRequestReason?.Value,
+            briefing.CreatedAt);
     }
 }

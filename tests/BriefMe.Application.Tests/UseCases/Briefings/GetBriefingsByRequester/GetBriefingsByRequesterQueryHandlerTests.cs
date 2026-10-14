@@ -1,9 +1,11 @@
 using BriefMe.Application.Abstractions;
+using BriefMe.Application.Common.Briefings;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
+using BriefMe.Domain.ValueObjects;
 using FluentAssertions;
 using Moq;
 
@@ -12,6 +14,8 @@ namespace BriefMe.Application.Tests.UseCases.Briefings.GetBriefingsByRequester;
 public class GetBriefingsByRequesterQueryHandlerTests
 {
     private readonly Mock<IBriefingRepository> _briefingRepositoryMock = new();
+    private readonly Mock<ICategoryRepository> _categoryRepositoryMock = new();
+    private readonly Mock<IUserRepository> _userRepositoryMock = new();
     private readonly Mock<ICurrentUser> _currentUserMock = new();
     private readonly Guid _requesterId = Guid.NewGuid();
     private readonly GetBriefingsByRequesterQueryHandler _handler;
@@ -20,9 +24,16 @@ public class GetBriefingsByRequesterQueryHandlerTests
     {
         _handler = new GetBriefingsByRequesterQueryHandler(
             _briefingRepositoryMock.Object,
+            new BriefingComplementsLoader(_categoryRepositoryMock.Object, _userRepositoryMock.Object),
             _currentUserMock.Object);
 
         _currentUserMock.Setup(u => u.UserId).Returns(_requesterId.ToString());
+        _categoryRepositoryMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync([]);
+        _userRepositoryMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync([]);
     }
 
     private Briefing NewDraft(Guid? categoryId = null) =>
@@ -53,7 +64,6 @@ public class GetBriefingsByRequesterQueryHandlerTests
         result.Value.TotalCount.Should().Be(25);
         var item = result.Value.Items.Should().ContainSingle().Subject;
         item.Id.Should().Be(briefing.Id);
-        item.RequesterId.Should().Be(_requesterId);
         item.Status.Should().Be(BriefingStatus.Draft);
     }
 
@@ -141,5 +151,33 @@ public class GetBriefingsByRequesterQueryHandlerTests
         _briefingRepositoryMock.Verify(
             r => r.GetByRequesterAsync(It.IsAny<Guid>(), It.IsAny<BriefingFilter>(), It.IsAny<int>(), It.IsAny<int>(), default),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenNamesResolve_FillsCategoryAndDesignerNames()
+    {
+        // Arrange
+        var category = Category.Create("Evento");
+        var designer = User.Create("Dora Designer", Email.Create("dora@briefme.com").Value, "hash", UserRole.Designer);
+        var briefing = Briefing.Create("Banner", Priority.Medium, category.Id, _requesterId,
+            "d", "o", "a", DateOnly.FromDateTime(DateTime.UtcNow));
+        briefing.Submit();
+        briefing.Claim(designer.Id);
+
+        _briefingRepositoryMock
+            .Setup(r => r.GetByRequesterAsync(_requesterId, It.IsAny<BriefingFilter>(), 1, 10, default))
+            .ReturnsAsync([briefing]);
+        _categoryRepositoryMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync([category]);
+        _userRepositoryMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync([designer]);
+
+        // Act
+        var result = await _handler.Handle(new GetBriefingsByRequesterQuery(Page: 1, PageSize: 10), default);
+
+        // Assert
+        result.Value.Items.Single().Should().BeEquivalentTo(new { CategoryName = "Evento", DesignerName = "Dora Designer" });
     }
 }

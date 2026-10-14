@@ -78,7 +78,7 @@ public class EditBriefingCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenStatusIsAwaitingApproval_IsEditable()
+    public async Task Handle_WhenStatusIsSubmitted_IsEditable()
     {
         // Arrange
         var briefing = NewDraft();
@@ -96,7 +96,7 @@ public class EditBriefingCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenStatusIsApproved_ReturnsEditNotAllowedConflictWithoutCommitting()
+    public async Task Handle_WhenStatusIsInProgress_ReturnsEditNotAllowedConflictWithoutCommitting()
     {
         // Arrange
         var briefing = NewDraft();

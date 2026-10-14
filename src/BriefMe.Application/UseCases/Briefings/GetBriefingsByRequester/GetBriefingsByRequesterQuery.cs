@@ -7,13 +7,11 @@ using BriefMe.Domain.Enums;
 namespace BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
 
 /// <summary>
-/// Returns the authenticated requester's own briefings, paginated, with optional filters by
-/// <see cref="Status"/> and <see cref="CategoryId"/> (RF008, BRF-008). The requester is taken from
-/// <c>ICurrentUser</c> and is not part of the query. Broad-view (Manager/Admin sees everyone's briefings) is
-/// out of scope here — see the spec.
+/// The authenticated requester's own briefings, newest first, paginated and optionally filtered by status
+/// and category. The requester comes from <c>ICurrentUser</c> and is not part of the query.
 /// </summary>
 public sealed record GetBriefingsByRequesterQuery(
     int Page,
     int PageSize,
     BriefingStatus? Status = null,
-    Guid? CategoryId = null) : IQuery<PagedDto<BriefingDto>>;
+    Guid? CategoryId = null) : IQuery<PagedDto<BriefingListItemDto>>;
