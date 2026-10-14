@@ -66,8 +66,6 @@ builder.Services.AddScoped<IBriefingsApiClient, BriefingsApiClient>();
 // Blazor data client for the Designer's task board (BRF-033): same "Api" pipeline.
 builder.Services.AddScoped<ITasksApiClient, TasksApiClient>();
 
-// Blazor data client for the in-app notification bell (BRF-054): same "Api" pipeline.
-builder.Services.AddScoped<INotificationsApiClient, NotificationsApiClient>();
 
 var app = builder.Build();
 

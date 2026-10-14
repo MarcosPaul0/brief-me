@@ -1,10 +1,8 @@
 using BriefMe.Application.Abstractions;
 using BriefMe.Application.Abstractions.Messaging;
-using BriefMe.Application.Abstractions.Notifications;
 using BriefMe.Domain.Repositories;
 using BriefMe.Infrastructure.Auth;
 using BriefMe.Infrastructure.Messaging;
-using BriefMe.Infrastructure.Notifications;
 using BriefMe.Infrastructure.Sla;
 using BriefMe.Infrastructure.Persistence;
 using BriefMe.Infrastructure.Persistence.Interceptors;
@@ -57,16 +55,10 @@ public static class DependencyInjection
         services.AddScoped<IBriefingRepository, BriefingRepository>();
         services.AddScoped<IBriefingTaskRepository, BriefingTaskRepository>();
         services.AddScoped<ISlaRuleRepository, SlaRuleRepository>();
-        services.AddScoped<INotificationRepository, NotificationRepository>();
         // Placeholder category catalog (BRF-013) — immutable seed data, no per-request state, so a singleton.
         // BRF-059 swaps this for the EF-backed Category aggregate without touching the Domain interface.
         services.AddSingleton<ICategoryRepository, SeededCategoryRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-
-        // In-app inbox delivery (RF031–RF035, BRF-048). Scoped, like the repository and unit of work it
-        // writes through, so it works both inside a request and inside the scope the SLA job opens for
-        // itself. Nothing calls it yet — its consumers are the notification handlers of BRF-050–053.
-        services.AddScoped<INotificationService, InAppNotificationService>();
 
         // Deadline monitor (RF028, BRF-043). Registered unconditionally; SlaMonitor:Enabled decides at run
         // time whether it sweeps, so turning it off does not change the shape of the container.

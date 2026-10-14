@@ -32,8 +32,6 @@ public class AppDbContext : DbContext
 
     public DbSet<SlaRule> SlaRules => Set<SlaRule>();
 
-    public DbSet<Notification> Notifications => Set<Notification>();
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());

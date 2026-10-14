@@ -2,13 +2,7 @@
 @inject NavigationManager NavigationManager
 
 <div class="flex h-full flex-col gap-6 p-[20px]">
-    @* The bell sits in the sidebar header rather than in a top bar of its own: MainLayout gives each page
-       the full content column, and introducing a second chrome surface would push every existing screen
-       down. It is where the app's other per-person control (logout) already lives. *@
-    <div class="flex items-center justify-between gap-2">
-        <a href="" class="text-[20px] font-medium tracking-[-0.4px] text-white">BriefMe</a>
-        <NotificationBell />
-    </div>
+    <a href="" class="text-[20px] font-medium tracking-[-0.4px] text-white">BriefMe</a>
 
     <nav class="flex flex-1 flex-col gap-1" aria-label="Navegação principal">
         <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Início</NavLink>

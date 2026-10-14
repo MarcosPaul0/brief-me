@@ -221,9 +221,6 @@
   .end-100 {
     inset-inline-end: calc(var(--spacing) * 100);
   }
-  .-top-\[2px\] {
-    top: calc(2px * -1);
-  }
   .top-0 {
     top: 0;
   }
@@ -233,12 +230,6 @@
   .top-100 {
     top: calc(var(--spacing) * 100);
   }
-  .top-\[48px\] {
-    top: 48px;
-  }
-  .-right-\[2px\] {
-    right: calc(2px * -1);
-  }
   .bottom-0 {
     bottom: 0;
   }
@@ -247,9 +238,6 @@
   }
   .bottom-100 {
     bottom: calc(var(--spacing) * 100);
-  }
-  .left-0 {
-    left: 0;
   }
   .z-0 {
     z-index: 0;
@@ -262,9 +250,6 @@
   }
   .z-3 {
     z-index: 3;
-  }
-  .z-40 {
-    z-index: 40;
   }
   .z-50 {
     z-index: 50;
@@ -491,9 +476,6 @@
   .mt-\[3px\] {
     margin-top: 3px;
   }
-  .mt-\[6px\] {
-    margin-top: 6px;
-  }
   .mt-\[12px\] {
     margin-top: 12px;
   }
@@ -529,15 +511,6 @@
   }
   .mb-auto {
     margin-bottom: auto;
-  }
-  .ml-auto {
-    margin-left: auto;
-  }
-  .line-clamp-3 {
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
   }
   .block {
     display: block;
@@ -590,14 +563,8 @@
   .h-100 {
     height: calc(var(--spacing) * 100);
   }
-  .h-\[6px\] {
-    height: 6px;
-  }
   .h-\[10px\] {
     height: 10px;
-  }
-  .h-\[40px\] {
-    height: 40px;
   }
   .h-auto {
     height: auto;
@@ -607,9 +574,6 @@
   }
   .h-screen {
     height: 100vh;
-  }
-  .max-h-\[420px\] {
-    max-height: 420px;
   }
   .min-h-full {
     min-height: 100%;
@@ -632,17 +596,8 @@
   .w-100 {
     width: calc(var(--spacing) * 100);
   }
-  .w-\[6px\] {
-    width: 6px;
-  }
-  .w-\[40px\] {
-    width: 40px;
-  }
   .w-\[250px\] {
     width: 250px;
-  }
-  .w-\[360px\] {
-    width: 360px;
   }
   .w-auto {
     width: auto;
@@ -671,14 +626,8 @@
   .max-w-\[1100px\] {
     max-width: 1100px;
   }
-  .max-w-\[calc\(100vw-40px\)\] {
-    max-width: calc(100vw - 40px);
-  }
   .min-w-0 {
     min-width: 0;
-  }
-  .min-w-\[18px\] {
-    min-width: 18px;
   }
   .min-w-\[220px\] {
     min-width: 220px;
@@ -736,9 +685,6 @@
   }
   .animate-spin {
     animation: var(--animate-spin);
-  }
-  .cursor-default {
-    cursor: default;
   }
   .resize {
     resize: both;
@@ -977,9 +923,6 @@
   .bg-\[\#22c55e\]\/10 {
     background-color: color-mix(in oklab, #22c55e 10%, transparent);
   }
-  .bg-\[\#0099ff\] {
-    background-color: #0099ff;
-  }
   .bg-\[\#0099ff\]\/10 {
     background-color: color-mix(in oklab, #0099ff 10%, transparent);
   }
@@ -989,20 +932,11 @@
   .bg-\[\#141414\] {
     background-color: #141414;
   }
-  .bg-\[\#999999\] {
-    background-color: #999999;
-  }
   .bg-\[\#999999\]\/10 {
     background-color: color-mix(in oklab, #999999 10%, transparent);
   }
-  .bg-\[\#ef4444\] {
-    background-color: #ef4444;
-  }
   .bg-\[\#ef4444\]\/10 {
     background-color: color-mix(in oklab, #ef4444 10%, transparent);
-  }
-  .bg-\[\#ff7a3d\] {
-    background-color: #ff7a3d;
   }
   .bg-\[\#ff7a3d\]\/15 {
     background-color: color-mix(in oklab, #ff7a3d 15%, transparent);
@@ -1076,9 +1010,6 @@
   .px-6 {
     padding-inline: calc(var(--spacing) * 6);
   }
-  .px-\[5px\] {
-    padding-inline: 5px;
-  }
   .px-\[8px\] {
     padding-inline: 8px;
   }
@@ -1120,9 +1051,6 @@
   }
   .py-8 {
     padding-block: calc(var(--spacing) * 8);
-  }
-  .py-16 {
-    padding-block: calc(var(--spacing) * 16);
   }
   .py-24 {
     padding-block: calc(var(--spacing) * 24);
@@ -1418,10 +1346,6 @@
   }
   .shadow-\[0_10px_30px_rgba\(0\,0\,0\,0\.25\)\] {
     --tw-shadow: 0 10px 30px var(--tw-shadow-color, rgba(0,0,0,0.25));
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-  .shadow-\[0_10px_30px_rgba\(0\,0\,0\,0\.45\)\] {
-    --tw-shadow: 0 10px 30px var(--tw-shadow-color, rgba(0,0,0,0.45));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
   .shadow-lg {
