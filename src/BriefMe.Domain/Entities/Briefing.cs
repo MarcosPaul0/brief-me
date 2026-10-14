@@ -1,18 +1,25 @@
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Exceptions;
+using BriefMe.Domain.ValueObjects;
 
 namespace BriefMe.Domain.Entities;
 
 /// <summary>
-/// Design demand request aggregate (RF004–RF014). Born as <see cref="BriefingStatus.Draft"/> and
-/// encapsulates the state transitions allowed in this slice of the domain: the requester's lifecycle
-/// (RF004–RF010) and the Design Manager's review (RF011–RF014), plus the two execution states driven from
-/// outside: <see cref="StartExecution"/> when the briefing is broken down into tasks (RF015, BRF-026) and
-/// <see cref="Complete"/> when every one of them is approved (RF024, BRF-036).
+/// A design request and the work done on it. The requester drafts and submits it; it then waits in the open
+/// queue until a designer claims it; the designer delivers; the requester accepts or asks for changes, which
+/// sends it back to the same designer.
 /// </summary>
+/// <remarks>
+/// Every transition guards its own source status and throws <see cref="DomainException"/> otherwise. Use
+/// cases check the status first and answer an expected conflict, so an exception here means a caller skipped
+/// that check. Who may act (owner, assignee) is the use case's job; the aggregate only checks that a designer
+/// delivering is the one who claimed it, since that is a fact it holds.
+/// </remarks>
 public class Briefing : AggregateRoot, IAuditableEntity
 {
+    public const int DeliveryNoteMaxLength = 4000;
+
     private Briefing(
         Guid id,
         string title,
@@ -51,13 +58,26 @@ public class Briefing : AggregateRoot, IAuditableEntity
 
     public Priority Priority { get; private set; }
 
-    /// <summary>Briefing category (RF040). Logical FK; the physical constraint arrives with BRF-059.</summary>
     public Guid CategoryId { get; private set; }
 
-    /// <summary>Requesting user who owns the briefing.</summary>
+    /// <summary>The user who wrote the briefing and decides whether the delivery is accepted.</summary>
     public Guid RequesterId { get; private set; }
 
+    /// <summary>The designer who claimed the briefing; null while it is a draft or in the queue.</summary>
+    public Guid? DesignerId { get; private set; }
+
     public BriefingStatus Status { get; private set; }
+
+    /// <summary>What the designer handed over (a link, a summary). Replaced on every delivery.</summary>
+    public string? DeliveryNote { get; private set; }
+
+    public DateTime? DeliveredAt { get; private set; }
+
+    /// <summary>
+    /// What the requester asked to change on the last delivery. Set by <see cref="RequestChanges"/> and
+    /// cleared by the next <see cref="Deliver"/>, so it is only present while the designer still owes it.
+    /// </summary>
+    public Justification? ChangeRequestReason { get; private set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -68,9 +88,8 @@ public class Briefing : AggregateRoot, IAuditableEntity
     public string? UpdatedBy { get; set; }
 
     /// <summary>
-    /// Creates and saves a new briefing as a draft (RF004/RF006). Validation here checks minimal presence
-    /// to identify the draft; completeness for submission is verified in <see cref="SubmitForApproval"/>
-    /// (BRF-006). Subsequent draft edits go through <see cref="Edit"/>.
+    /// Creates a draft. Only the title, priority, category and requester are needed here; the rest is
+    /// required on <see cref="Submit"/>.
     /// </summary>
     public static Briefing Create(
         string title,
@@ -103,22 +122,10 @@ public class Briefing : AggregateRoot, IAuditableEntity
             requesterId);
     }
 
-    /// <summary>
-    /// Edits the briefing content (RF009). Allowed in Draft and AwaitingApproval, plus ChangesRequested —
-    /// the state a review returns the briefing to precisely so the requester can correct it (RF014, BRF-018).
-    /// </summary>
-    /// <remarks>
-    /// Clears <see cref="OverdueSince"/>: <see cref="DesiredDeliveryDate"/> is one of the fields this method
-    /// moves, so an edited briefing is no longer late against the date it used to carry and returns to the
-    /// monitor's sweep (RF028). The mark is dropped even when the date itself did not change — the
-    /// alternative would be comparing the old value here, and the next sweep re-marks it within the interval
-    /// anyway.
-    /// <para>
-    /// Raises <see cref="EntityChanged"/> only when the briefing has already left <c>Draft</c>: RF034 asks
-    /// that the <b>involved</b> people be told, and while the demand is a draft the only person involved is
-    /// the one doing the editing. From <c>AwaitingApproval</c> on there is at least a Manager waiting on it.
-    /// </para>
-    /// </remarks>
+    /// <summary>True while nobody is working on the briefing: the requester can still edit or cancel it.</summary>
+    public bool IsOpenForRequester => Status is BriefingStatus.Draft or BriefingStatus.Submitted;
+
+    /// <summary>Edits the content. Allowed in Draft and Submitted — once claimed, the designer works on what was sent.</summary>
     public void Edit(
         string title,
         Priority priority,
@@ -127,9 +134,9 @@ public class Briefing : AggregateRoot, IAuditableEntity
         string? requestingArea,
         DateOnly? desiredDeliveryDate)
     {
-        if (Status is not (BriefingStatus.Draft or BriefingStatus.AwaitingApproval or BriefingStatus.ChangesRequested))
+        if (!IsOpenForRequester)
             throw new DomainException(
-                $"Edit not allowed: the briefing is in {Status}. Editing is only possible in Draft, AwaitingApproval or ChangesRequested.");
+                $"Edit not allowed: the briefing is in {Status}. Editing is only possible in Draft or Submitted.");
 
         if (string.IsNullOrWhiteSpace(title))
             throw new DomainException("Briefing title is required.");
@@ -143,22 +150,13 @@ public class Briefing : AggregateRoot, IAuditableEntity
     }
 
     /// <summary>
-    /// Submits the briefing for approval (RF007). Requires the mandatory RF005 fields; returns a validation
-    /// failure (without changing state) when one is missing. Category checklist validation (RF063) is
-    /// deferred to BRF-093.
+    /// Sends the draft to the designer queue. Returns a validation failure, without changing state, when a
+    /// field the designer needs is missing.
     /// </summary>
-    /// <remarks>
-    /// Attachments are deliberately <b>not</b> required: BRF-001 models them as "zero or more", and RF005
-    /// lists them among the briefing's fields, not among the conditions for review — a demand can be fully
-    /// described in prose. The rule that used to be here also could never hold: callers load the aggregate
-    /// through <c>GetByIdAsync</c>, which does not include the collection, so the count read zero even for a
-    /// briefing whose files were in the database.
-    /// </remarks>
-    public Result SubmitForApproval()
+    public Result Submit()
     {
-        if (Status is not (BriefingStatus.Draft or BriefingStatus.ChangesRequested))
-            throw new DomainException(
-                $"Submission for approval not allowed: the briefing is in {Status}.");
+        if (Status is not BriefingStatus.Draft)
+            throw new DomainException($"Submission not allowed: the briefing is in {Status}.");
 
         var errors = new List<ValidationError>();
 
@@ -177,27 +175,88 @@ public class Briefing : AggregateRoot, IAuditableEntity
         if (errors.Count > 0)
             return Result.Failure(errors);
 
-        Status = BriefingStatus.AwaitingApproval;
+        Status = BriefingStatus.Submitted;
         return Result.Success();
     }
 
-    /// <summary>
-    /// Cancels the briefing (RF010). Not allowed after execution has started. Announces itself to the people
-    /// involved (RF034) unless the briefing was still a draft — a demand nobody but its requester ever saw.
-    /// </summary>
+    /// <summary>Cancels the briefing. Only before a designer claims it.</summary>
     public void Cancel()
     {
-        if (Status is BriefingStatus.InProgress or BriefingStatus.Completed)
-            throw new DomainException(
-                $"Cancellation not allowed: the briefing is in {Status}.");
-
-        if (Status is BriefingStatus.Cancelled)
-            throw new DomainException("The briefing is already cancelled.");
+        if (!IsOpenForRequester)
+            throw new DomainException($"Cancellation not allowed: the briefing is in {Status}.");
 
         Status = BriefingStatus.Cancelled;
     }
 
+    /// <summary>A designer takes the briefing from the queue and becomes responsible for it.</summary>
+    public void Claim(Guid designerId)
+    {
+        if (designerId == Guid.Empty)
+            throw new DomainException("The designer is required.");
+
+        if (Status is not BriefingStatus.Submitted)
+            throw new DomainException($"Claim not allowed: the briefing is in {Status}. Only submitted briefings can be claimed.");
+
+        DesignerId = designerId;
+        Status = BriefingStatus.InProgress;
+    }
+
+    /// <summary>
+    /// The assigned designer hands over the work. The note is mandatory — it is the only thing the
+    /// requester receives. Clears a pending change request, which this delivery answers.
+    /// </summary>
+    public void Deliver(Guid designerId, string? deliveryNote)
+    {
+        if (Status is not BriefingStatus.InProgress)
+            throw new DomainException($"Delivery not allowed: the briefing is in {Status}. Only briefings in progress can be delivered.");
+
+        if (designerId != DesignerId)
+            throw new DomainException("Only the designer who claimed the briefing can deliver it.");
+
+        if (string.IsNullOrWhiteSpace(deliveryNote))
+            throw new DomainException("Delivery note is required.");
+
+        var note = deliveryNote.Trim();
+        if (note.Length > DeliveryNoteMaxLength)
+            throw new DomainException($"Delivery note must be at most {DeliveryNoteMaxLength} characters.");
+
+        DeliveryNote = note;
+        DeliveredAt = DateTime.UtcNow;
+        ChangeRequestReason = null;
+        Status = BriefingStatus.Delivered;
+    }
+
+    /// <summary>The requester accepts the delivery and closes the briefing.</summary>
+    public void Accept()
+    {
+        EnsureDelivered("Acceptance");
+
+        Status = BriefingStatus.Completed;
+    }
+
+    /// <summary>
+    /// The requester sends the delivery back to the same designer with what to change. The reason is
+    /// mandatory; an absent, blank or oversized one throws and leaves the status untouched.
+    /// </summary>
+    public void RequestChanges(string? reason)
+    {
+        EnsureDelivered("Change request");
+
+        var justification = Justification.Create(reason);
+        if (justification.IsFailure)
+            throw new DomainException(justification.Error ?? "Justification is required.");
+
+        ChangeRequestReason = justification.Value;
+        Status = BriefingStatus.InProgress;
+    }
+
+    private void EnsureDelivered(string operation)
+    {
+        if (Status is not BriefingStatus.Delivered)
+            throw new DomainException(
+                $"{operation} not allowed: the briefing is in {Status}. Only delivered briefings can be reviewed.");
+    }
+
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
 }

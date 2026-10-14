@@ -84,10 +84,10 @@ public class GetBriefingsByRequesterQueryHandlerTests
         var query = new GetBriefingsByRequesterQuery(
             Page: 1,
             PageSize: 20,
-            Status: BriefingStatus.AwaitingApproval,
+            Status: BriefingStatus.Submitted,
             CategoryId: categoryId);
 
-        var expectedFilter = new BriefingFilter(BriefingStatus.AwaitingApproval, categoryId);
+        var expectedFilter = new BriefingFilter(BriefingStatus.Submitted, categoryId);
 
         _briefingRepositoryMock
             .Setup(r => r.GetByRequesterAsync(_requesterId, expectedFilter, 1, 20, default))

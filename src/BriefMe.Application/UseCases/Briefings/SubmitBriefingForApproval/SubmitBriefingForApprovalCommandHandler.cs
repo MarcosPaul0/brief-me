@@ -33,10 +33,10 @@ public sealed class SubmitBriefingForApprovalCommandHandler(
         if (briefing.RequesterId != requesterId)
             return Result.Forbidden<BriefingDto>(BriefingErrors.NotOwnerToSubmit);
 
-        if (briefing.Status is not (BriefingStatus.Draft or BriefingStatus.ChangesRequested))
+        if (briefing.Status is not BriefingStatus.Draft)
             return Result.Conflict<BriefingDto>(BriefingErrors.NotSubmittable);
 
-        var submission = briefing.SubmitForApproval();
+        var submission = briefing.Submit();
         if (submission.IsFailure)
             return Result.Failure<BriefingDto>(submission.Errors);
 

@@ -55,7 +55,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Status.Should().Be(BriefingStatus.AwaitingApproval);
+        result.Value.Status.Should().Be(BriefingStatus.Submitted);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class SubmitBriefingForApprovalCommandHandlerTests
     {
         // Arrange
         var briefing = CompleteDraft();
-        ForceStatus(briefing, BriefingStatus.AwaitingApproval);
+        ForceStatus(briefing, BriefingStatus.Submitted);
         _briefingRepositoryMock
             .Setup(r => r.GetByIdAsync(briefing.Id, default))
             .ReturnsAsync(briefing);
@@ -148,24 +148,6 @@ public class SubmitBriefingForApprovalCommandHandlerTests
         result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ErrorType.Conflict);
         _unitOfWorkMock.Verify(u => u.CommitAsync(default), Times.Never);
-    }
-
-    [Fact]
-    public async Task Handle_WhenChangesRequested_IsSubmittable()
-    {
-        // Arrange
-        var briefing = CompleteDraft();
-        ForceStatus(briefing, BriefingStatus.ChangesRequested);
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdAsync(briefing.Id, default))
-            .ReturnsAsync(briefing);
-
-        // Act
-        var result = await _handler.Handle(new SubmitBriefingForApprovalCommand(briefing.Id), default);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Status.Should().Be(BriefingStatus.AwaitingApproval);
     }
 
     [Fact]

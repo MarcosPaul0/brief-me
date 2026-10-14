@@ -33,7 +33,7 @@ public sealed class EditBriefingCommandHandler(
         if (briefing.RequesterId != requesterId)
             return Result.Forbidden<BriefingDto>(BriefingErrors.NotOwnerToEdit);
 
-        if (briefing.Status is not (BriefingStatus.Draft or BriefingStatus.AwaitingApproval or BriefingStatus.ChangesRequested))
+        if (!briefing.IsOpenForRequester)
             return Result.Conflict<BriefingDto>(BriefingErrors.EditNotAllowed);
 
         briefing.Edit(

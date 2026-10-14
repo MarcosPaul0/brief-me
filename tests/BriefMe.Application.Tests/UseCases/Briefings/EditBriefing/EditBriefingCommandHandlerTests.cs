@@ -82,29 +82,7 @@ public class EditBriefingCommandHandlerTests
     {
         // Arrange
         var briefing = NewDraft();
-        ForceStatus(briefing, BriefingStatus.AwaitingApproval);
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdAsync(briefing.Id, default))
-            .ReturnsAsync(briefing);
-
-        // Act
-        var result = await _handler.Handle(EditCommand(briefing.Id), default);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Title.Should().Be("Edited title");
-    }
-
-    /// <summary>
-    /// RF014/BRF-018: a briefing returned for corrections must be editable, otherwise the review cycle dead-ends
-    /// the moment the manager asks for changes.
-    /// </summary>
-    [Fact]
-    public async Task Handle_WhenStatusIsChangesRequested_IsEditable()
-    {
-        // Arrange
-        var briefing = NewDraft();
-        ForceStatus(briefing, BriefingStatus.ChangesRequested);
+        ForceStatus(briefing, BriefingStatus.Submitted);
         _briefingRepositoryMock
             .Setup(r => r.GetByIdAsync(briefing.Id, default))
             .ReturnsAsync(briefing);
@@ -122,7 +100,7 @@ public class EditBriefingCommandHandlerTests
     {
         // Arrange
         var briefing = NewDraft();
-        ForceStatus(briefing, BriefingStatus.Approved);
+        ForceStatus(briefing, BriefingStatus.InProgress);
         _briefingRepositoryMock
             .Setup(r => r.GetByIdAsync(briefing.Id, default))
             .ReturnsAsync(briefing);

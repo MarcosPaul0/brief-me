@@ -151,7 +151,7 @@ public class BriefingsApiClientTests
         var id = Guid.NewGuid();
         var (client, handler) = CreateSut(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = BriefingResponse(id, BriefingStatus.AwaitingApproval).Content
+            Content = BriefingResponse(id, BriefingStatus.Submitted).Content
         });
 
         // Act
@@ -159,7 +159,7 @@ public class BriefingsApiClientTests
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Status.Should().Be(BriefingStatus.AwaitingApproval);
+        result.Value.Status.Should().Be(BriefingStatus.Submitted);
         handler.Requests[0].Method.Should().Be(HttpMethod.Post);
         handler.Requests[0].RequestUri!.AbsolutePath.Should().Be($"/briefings/{id}/submit");
     }
@@ -227,11 +227,11 @@ public class BriefingsApiClientTests
         var (client, handler) = CreateSut(_ => PagedBriefingsResponse());
 
         // Act
-        await client.GetBriefingsAsync(new BriefingListQuery(1, 20, BriefingStatus.AwaitingApproval, categoryId));
+        await client.GetBriefingsAsync(new BriefingListQuery(1, 20, BriefingStatus.Submitted, categoryId));
 
         // Assert
         var query = handler.Requests[0].RequestUri!.Query;
-        query.Should().Contain($"status={nameof(BriefingStatus.AwaitingApproval)}");
+        query.Should().Contain($"status={nameof(BriefingStatus.Submitted)}");
         query.Should().Contain($"categoryId={categoryId}");
     }
 

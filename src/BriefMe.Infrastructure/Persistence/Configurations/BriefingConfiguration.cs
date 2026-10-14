@@ -1,4 +1,5 @@
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -41,6 +42,24 @@ public class BriefingConfiguration : IEntityTypeConfiguration<Briefing>
 
         builder.Property(b => b.CategoryId).IsRequired();
         builder.Property(b => b.RequesterId).IsRequired();
+        builder.Property(b => b.DesignerId);
+
+        builder.Property(b => b.DeliveryNote).HasMaxLength(Briefing.DeliveryNoteMaxLength);
+        builder.Property(b => b.DeliveredAt);
+
+        // The converter only runs for non-null values, hence the suppression.
+        builder.Property(b => b.ChangeRequestReason)
+            .HasConversion(
+                justification => justification!.Value,
+                value => Justification.FromPersistedValue(value))
+            .HasMaxLength(Justification.MaxLength);
+
+        builder.Ignore(b => b.IsOpenForRequester);
+
+        // Optimistic concurrency on Postgres' xmin system column: two designers claiming the same briefing
+        // load the same version, and only the first commit matches it (Npgsql maps a uint row version to xmin,
+        // so no column is added).
+        builder.Property<uint>("xmin").IsRowVersion();
 
         builder.Property(b => b.CreatedAt).IsRequired();
         builder.Property(b => b.CreatedBy).HasMaxLength(100);
@@ -52,6 +71,11 @@ public class BriefingConfiguration : IEntityTypeConfiguration<Briefing>
             .HasForeignKey(b => b.RequesterId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(b => b.DesignerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne<Category>()
             .WithMany()
             .HasForeignKey(b => b.CategoryId)
@@ -60,6 +84,9 @@ public class BriefingConfiguration : IEntityTypeConfiguration<Briefing>
         builder.HasIndex(b => b.RequesterId).HasDatabaseName("IX_Briefings_RequesterId");
         builder.HasIndex(b => b.Status).HasDatabaseName("IX_Briefings_Status");
         builder.HasIndex(b => b.CategoryId).HasDatabaseName("IX_Briefings_CategoryId");
+
+        // Serves both the designer queue (Submitted, no designer) and "my work" (by designer).
+        builder.HasIndex(b => new { b.Status, b.DesignerId }).HasDatabaseName("IX_Briefings_Status_DesignerId");
 
     }
 }

@@ -222,7 +222,7 @@ public class BriefingsControllerTests
         var briefingId = Guid.NewGuid();
         var senderMock = new Mock<ISender>();
         senderMock.Setup(s => s.Send(It.IsAny<SubmitBriefingForApprovalCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(SampleDto(briefingId) with { Status = BriefingStatus.AwaitingApproval }));
+            .ReturnsAsync(Result.Success(SampleDto(briefingId) with { Status = BriefingStatus.Submitted }));
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
@@ -234,7 +234,7 @@ public class BriefingsControllerTests
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<BriefingDto>();
-        body!.Status.Should().Be(BriefingStatus.AwaitingApproval);
+        body!.Status.Should().Be(BriefingStatus.Submitted);
     }
 
     [Fact]

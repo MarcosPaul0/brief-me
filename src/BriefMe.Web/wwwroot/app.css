@@ -869,6 +869,9 @@
   .bg-\[\#22c55e\]\/10 {
     background-color: color-mix(in oklab, #22c55e 10%, transparent);
   }
+  .bg-\[\#0099ff\]\/10 {
+    background-color: color-mix(in oklab, #0099ff 10%, transparent);
+  }
   .bg-\[\#090909\] {
     background-color: #090909;
   }

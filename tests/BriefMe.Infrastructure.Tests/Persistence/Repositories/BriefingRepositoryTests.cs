@@ -77,8 +77,8 @@ public class BriefingRepositoryTests
 
         context.Briefings.AddRange(
             NewBriefing(requesterId, baseDate, BriefingStatus.Draft),
-            NewBriefing(requesterId, baseDate.AddDays(1), BriefingStatus.AwaitingApproval),
-            NewBriefing(requesterId, baseDate.AddDays(2), BriefingStatus.AwaitingApproval));
+            NewBriefing(requesterId, baseDate.AddDays(1), BriefingStatus.Submitted),
+            NewBriefing(requesterId, baseDate.AddDays(2), BriefingStatus.Submitted));
         await context.SaveChangesAsync();
 
         var repository = new BriefingRepository(context);
@@ -86,13 +86,13 @@ public class BriefingRepositoryTests
         // Act
         var result = await repository.GetByRequesterAsync(
             requesterId,
-            new BriefingFilter(Status: BriefingStatus.AwaitingApproval),
+            new BriefingFilter(Status: BriefingStatus.Submitted),
             page: 1,
             pageSize: 10);
 
         // Assert
         result.Should().HaveCount(2);
-        result.Should().OnlyContain(b => b.Status == BriefingStatus.AwaitingApproval);
+        result.Should().OnlyContain(b => b.Status == BriefingStatus.Submitted);
     }
 
     [Fact]
@@ -179,8 +179,8 @@ public class BriefingRepositoryTests
 
         context.Briefings.AddRange(
             NewBriefing(requesterId, baseDate, BriefingStatus.Draft),
-            NewBriefing(requesterId, baseDate.AddDays(1), BriefingStatus.AwaitingApproval),
-            NewBriefing(requesterId, baseDate.AddDays(2), BriefingStatus.AwaitingApproval));
+            NewBriefing(requesterId, baseDate.AddDays(1), BriefingStatus.Submitted),
+            NewBriefing(requesterId, baseDate.AddDays(2), BriefingStatus.Submitted));
         await context.SaveChangesAsync();
 
         var repository = new BriefingRepository(context);
@@ -188,7 +188,7 @@ public class BriefingRepositoryTests
         // Act
         var totalCount = await repository.CountByRequesterAsync(
             requesterId,
-            new BriefingFilter(Status: BriefingStatus.AwaitingApproval));
+            new BriefingFilter(Status: BriefingStatus.Submitted));
 
         // Assert
         totalCount.Should().Be(2);

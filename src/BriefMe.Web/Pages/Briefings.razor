@@ -319,13 +319,11 @@
         await LoadAsync();
     }
 
-    // The two guards below mirror Briefing.Edit / Briefing.Cancel (BRF-003) so the UI never offers an
-    // action the domain rejects. Keep them in sync if those invariants change.
+    // Mirrors Briefing.IsOpenForRequester so the UI never offers an action the domain rejects.
     private static bool CanEdit(BriefingStatus status) =>
-        status is BriefingStatus.Draft or BriefingStatus.AwaitingApproval;
+        status is BriefingStatus.Draft or BriefingStatus.Submitted;
 
-    private static bool CanCancel(BriefingStatus status) =>
-        status is not (BriefingStatus.InProgress or BriefingStatus.Completed or BriefingStatus.Cancelled);
+    private static bool CanCancel(BriefingStatus status) => CanEdit(status);
 
     private string CategoryName(Guid categoryId) =>
         _categories.FirstOrDefault(c => c.Id == categoryId)?.Name ?? "—";
