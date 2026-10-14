@@ -54,13 +54,25 @@ Domain ← Application ← Infrastructure
 
 ### Web (`BriefMe.Web`)
 - Routable pages (`@page`) in `Pages/` — one page = one screen/route
-- Reusable UI parts in `Components/` (`Auth/`, `Layout/`, `Profiles/`, `Users/`) — building blocks composed into pages
+- Reusable UI parts in `Components/` (`Auth/`, `Briefings/`, `Home/`, `Layout/`, `Users/`) — building blocks composed into pages
 - App root infra (`App.razor`, `Routes.razor`) stays in `Components/`
 - Typed REST API clients in `ApiClients/` (namespace `BriefMe.Web.ApiClients`) — thin clients pages/components call to reach the API; base HTTP infra (`AuthenticatedApiClient`, extensions) stays in `Http/`
 - Shared `@using` directives in root `_Imports.razor`
 - DI registration (`Program.cs`)
 - No business logic in components — call Application use cases only
 - `appsettings.json` / `appsettings.Development.json` for config
+
+## Product Scope
+
+Three fixed roles (`UserRole` enum on `User`, carried as the JWT role claim; authorize with
+`[Authorize(Roles = ...)]` / `<AuthorizeView Roles="...">` — there is no permission catalog):
+
+- **Requester** writes briefings and submits them to the queue; accepts the delivery or sends it back with a reason.
+- **Designer** claims a briefing from the open queue (first claim wins — optimistic concurrency on `xmin`) and delivers it with a note.
+- **Admin** manages users and categories only; takes no part in the briefing flow.
+
+Briefing lifecycle: `Draft → Submitted → InProgress → Delivered → Completed`, with `Delivered → InProgress` on a change
+request and `Draft|Submitted → Cancelled`. Spec: `.specs/features/simplified-workflow/`.
 
 ## Commands
 
