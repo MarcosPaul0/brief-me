@@ -13,120 +13,71 @@
 
 <PageTitle>Meus briefings</PageTitle>
 
-<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
-    <div class="mx-auto max-w-[1100px]">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">Meus briefings</h1>
-                <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
-                    Acompanhe o andamento das suas solicitações de design.
-                </p>
-            </div>
+<PageContainer>
+    <PageHeader Title="Meus briefings" Description="Acompanhe o andamento das suas solicitações de design.">
+        <Actions>
+            <Button OnClick="NavigateToNew">Novo briefing</Button>
+        </Actions>
+    </PageHeader>
 
-            <button type="button" @onclick="NavigateToNew"
-                    class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90">
-                Novo briefing
-            </button>
-        </div>
+    <form @onsubmit="ApplyFiltersAsync" @onsubmit:preventDefault="true" class="mt-8 flex flex-wrap items-end gap-3">
+        <FormField Label="Status" For="status">
+            <NativeSelect id="status" @bind-Value="_statusFilter">
+                <option value="">Todos</option>
+                @foreach (var status in StatusOptions)
+                {
+                    <option value="@status.ToString()">@BriefingLabels.Status(status)</option>
+                }
+            </NativeSelect>
+        </FormField>
 
-        <form @onsubmit="ApplyFiltersAsync" @onsubmit:preventDefault="true"
-              class="mt-[30px] flex flex-wrap items-end gap-[12px]">
-            <div class="flex flex-col gap-1">
-                <label for="status" class="text-[13px] font-medium text-[#999999]">Status</label>
-                <select id="status" @bind="_statusFilter"
-                        class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none">
-                    <option value="">Todos</option>
-                    @foreach (var status in StatusOptions)
-                    {
-                        <option value="@status.ToString()">@BriefingLabels.Status(status)</option>
-                    }
-                </select>
-            </div>
-
-            @if (_categories.Count > 0)
-            {
-                <div class="flex flex-col gap-1">
-                    <label for="category" class="text-[13px] font-medium text-[#999999]">Categoria</label>
-                    <select id="category" @bind="_categoryFilter"
-                            class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none">
-                        <option value="">Todas</option>
-                        @foreach (var category in _categories)
-                        {
-                            <option value="@category.Id">@category.Name</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            <button type="submit"
-                    class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-white transition hover:bg-[#262626]">
-                Aplicar
-            </button>
-        </form>
-
-        @if (_actionError is not null)
+        @if (_categories.Count > 0)
         {
-            <div role="alert" class="mt-[20px] rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
-                @_actionError
-            </div>
+            <FormField Label="Categoria" For="category">
+                <NativeSelect id="category" @bind-Value="_categoryFilter">
+                    <option value="">Todas</option>
+                    @foreach (var category in _categories)
+                    {
+                        <option value="@category.Id">@category.Name</option>
+                    }
+                </NativeSelect>
+            </FormField>
         }
 
-        <div class="mt-[20px]">
-            <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowDesigner="true"
-                               EmptyHint="Ajuste os filtros ou abra um novo briefing."
-                               OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
-                <RowActions Context="briefing">
-                    <button type="button" @onclick="() => NavigateToDetail(briefing.Id)"
-                            class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
-                        Abrir
-                    </button>
-                    @if (CanEdit(briefing.Status))
-                    {
-                        <button type="button" @onclick="() => NavigateToEdit(briefing.Id)"
-                                class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
-                            Editar
-                        </button>
-                        <button type="button" @onclick="() => RequestCancel(briefing)"
-                                class="text-[14px] font-medium text-[#999999] transition hover:text-[#ef4444]">
-                            Cancelar
-                        </button>
-                    }
-                </RowActions>
-            </BriefingListTable>
-        </div>
-    </div>
-</div>
+        <Button Type="submit" Variant="ButtonVariant.Outline">Aplicar</Button>
+    </form>
 
-@if (_cancelTarget is not null)
-{
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
-        <div class="w-full max-w-[420px] rounded-[20px] border border-white/10 bg-[#141414] p-[30px] shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
-            <h2 id="cancelTitle" class="text-[22px] font-bold leading-[1.2] tracking-[-0.8px] text-white">Cancelar briefing</h2>
-            <p class="mt-2 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
-                O briefing "@_cancelTarget.Title" será cancelado e não poderá ser reaberto.
-            </p>
+    @if (_actionError is not null)
+    {
+        <Alert Class="mt-5">@_actionError</Alert>
+    }
 
-            <div class="mt-[20px] flex items-center justify-end gap-2">
-                <button type="button" @onclick="DismissCancel" disabled="@_isCancelling"
-                        class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:opacity-50">
-                    Voltar
-                </button>
-                <button type="button" @onclick="ConfirmCancelAsync" disabled="@_isCancelling"
-                        class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
-                    @if (_isCancelling)
-                    {
-                        <span class="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black"></span>
-                        <span>Cancelando...</span>
-                    }
-                    else
-                    {
-                        <span>Confirmar cancelamento</span>
-                    }
-                </button>
-            </div>
-        </div>
+    <div class="mt-5">
+        <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowDesigner="true"
+                           EmptyHint="Ajuste os filtros ou abra um novo briefing."
+                           OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
+            <RowActions Context="briefing">
+                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToDetail(briefing.Id)">Abrir</Button>
+                @if (CanEdit(briefing.Status))
+                {
+                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToEdit(briefing.Id)">Editar</Button>
+                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Class="text-negative!" OnClick="() => RequestCancel(briefing)">Cancelar</Button>
+                }
+            </RowActions>
+        </BriefingListTable>
     </div>
-}
+</PageContainer>
+
+<Dialog Open="_cancelTarget is not null" OnClose="DismissCancel" Dismissible="!_isCancelling"
+        Title="Cancelar briefing"
+        Description="@($"O briefing \"{_cancelTarget?.Title}\" será cancelado e não poderá ser reaberto.")">
+    <Footer>
+        <Button Variant="ButtonVariant.Secondary" OnClick="DismissCancel" Disabled="_isCancelling">Voltar</Button>
+        <Button Variant="ButtonVariant.Destructive" OnClick="ConfirmCancelAsync" Loading="_isCancelling">
+            @(_isCancelling ? "Cancelando..." : "Confirmar cancelamento")
+        </Button>
+    </Footer>
+</Dialog>
 
 @code {
     private const int PageSize = 20;

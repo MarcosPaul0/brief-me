@@ -12,169 +12,119 @@
 
 <PageTitle>@(_briefing?.Title ?? "Briefing")</PageTitle>
 
-<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
-    <div class="mx-auto max-w-[760px]">
-        <button type="button" @onclick="NavigateBack"
-                class="text-[14px] font-medium text-[#999999] transition hover:text-white">
-            ← Voltar
-        </button>
+<PageContainer Width="PageWidth.Md">
+    <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Class="-ml-3" OnClick="NavigateBack">← Voltar</Button>
 
-        @if (_isLoading)
+    @if (_isLoading)
+    {
+        <Card Class="mt-5">
+            <LoadingState />
+        </Card>
+    }
+    else if (_loadError is not null || _briefing is null)
+    {
+        <Card Class="mt-5">
+            <EmptyState Title="@(_loadError ?? "Briefing não encontrado")" />
+        </Card>
+    }
+    else
+    {
+        <PageHeader Class="mt-5" Title="@_briefing.Title"
+                    Description="@($"{_briefing.CategoryName ?? "—"} • Prioridade {BriefingLabels.Priority(_briefing.Priority)}")">
+            <Actions>
+                <Badge Variant="BriefingLabels.StatusBadgeVariant(_briefing.Status)">@BriefingLabels.Status(_briefing.Status)</Badge>
+            </Actions>
+        </PageHeader>
+
+        @if (_actionError is not null)
         {
-            <div class="mt-[20px] flex items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-[15px] text-[#999999]">
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-[#262626] border-t-white"></span>
-                <span>Carregando...</span>
-            </div>
+            <Alert Class="mt-5">@_actionError</Alert>
         }
-        else if (_loadError is not null || _briefing is null)
+
+        @if (_briefing.ChangeRequestReason is not null)
         {
-            <div class="mt-[20px] flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] px-6 py-24 text-center">
-                <p class="text-[15px] text-white">@(_loadError ?? "Briefing não encontrado")</p>
-            </div>
+            <Alert Variant="AlertVariant.Warning" Title="Ajustes solicitados pelo solicitante" Class="mt-5">
+                <p class="whitespace-pre-line">@_briefing.ChangeRequestReason</p>
+            </Alert>
         }
-        else
+
+        @if (_briefing.DeliveryNote is not null)
         {
-            <div class="mt-[20px] flex flex-wrap items-start justify-between gap-4">
-                <div>
-                    <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">@_briefing.Title</h1>
-                    <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
-                        @(_briefing.CategoryName ?? "—") • Prioridade @BriefingLabels.Priority(_briefing.Priority)
-                    </p>
-                </div>
-                <span class="inline-flex items-center rounded-[100px] px-[12px] py-[6px] text-[13px] font-medium @BriefingLabels.StatusBadgeClass(_briefing.Status)">
-                    @BriefingLabels.Status(_briefing.Status)
-                </span>
-            </div>
+            <Card Class="mt-5 p-5">
+                <p class="text-caption font-medium text-ink-meta">
+                    Entrega @(_briefing.DeliveredAt is { } at ? $"em {at.ToLocalTime():dd/MM/yyyy HH:mm}" : "")
+                </p>
+                @if (Uri.TryCreate(_briefing.DeliveryNote, UriKind.Absolute, out var link) && (link.Scheme == Uri.UriSchemeHttp || link.Scheme == Uri.UriSchemeHttps))
+                {
+                    <a href="@link" target="_blank" rel="noopener noreferrer"
+                       class="mt-1 block break-all text-link text-primary hover:underline">@_briefing.DeliveryNote</a>
+                }
+                else
+                {
+                    <p class="mt-1 whitespace-pre-line text-list text-ink-body">@_briefing.DeliveryNote</p>
+                }
+            </Card>
+        }
 
-            @if (_actionError is not null)
-            {
-                <div role="alert" class="mt-[20px] rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
-                    @_actionError
-                </div>
-            }
-
-            @if (_briefing.ChangeRequestReason is not null)
-            {
-                <div class="mt-[20px] rounded-[20px] border border-[#f59e0b]/30 bg-[#f59e0b]/10 p-[20px]">
-                    <p class="text-[13px] font-medium text-[#f59e0b]">Ajustes solicitados pelo solicitante</p>
-                    <p class="mt-1 whitespace-pre-line text-[15px] leading-[1.4] text-white">@_briefing.ChangeRequestReason</p>
-                </div>
-            }
-
-            @if (_briefing.DeliveryNote is not null)
-            {
-                <div class="mt-[20px] rounded-[20px] border border-[#262626] bg-[#141414] p-[20px]">
-                    <p class="text-[13px] font-medium text-[#999999]">
-                        Entrega @(_briefing.DeliveredAt is { } at ? $"em {at.ToLocalTime():dd/MM/yyyy HH:mm}" : "")
-                    </p>
-                    @if (Uri.TryCreate(_briefing.DeliveryNote, UriKind.Absolute, out var link) && (link.Scheme == Uri.UriSchemeHttp || link.Scheme == Uri.UriSchemeHttps))
-                    {
-                        <a href="@link" target="_blank" rel="noopener noreferrer"
-                           class="mt-1 block break-all text-[15px] text-[#0099ff] hover:underline">@_briefing.DeliveryNote</a>
-                    }
-                    else
-                    {
-                        <p class="mt-1 whitespace-pre-line text-[15px] leading-[1.4] text-white">@_briefing.DeliveryNote</p>
-                    }
-                </div>
-            }
-
-            <dl class="mt-[20px] grid gap-[15px] rounded-[20px] border border-[#262626] bg-[#141414] p-[24px] sm:grid-cols-2">
-                <div>
-                    <dt class="text-[13px] font-medium text-[#999999]">Solicitante</dt>
-                    <dd class="mt-1 text-[15px] text-white">@(_briefing.RequesterName ?? "—")</dd>
-                </div>
-                <div>
-                    <dt class="text-[13px] font-medium text-[#999999]">Designer</dt>
-                    <dd class="mt-1 text-[15px] text-white">@(_briefing.DesignerName ?? "Ainda não assumido")</dd>
-                </div>
-                <div>
-                    <dt class="text-[13px] font-medium text-[#999999]">Área solicitante</dt>
-                    <dd class="mt-1 text-[15px] text-white">@(_briefing.RequestingArea ?? "—")</dd>
-                </div>
-                <div>
-                    <dt class="text-[13px] font-medium text-[#999999]">Entrega desejada</dt>
-                    <dd class="mt-1 text-[15px] text-white">@(_briefing.DesiredDeliveryDate?.ToString("dd/MM/yyyy") ?? "—")</dd>
-                </div>
-                <div class="sm:col-span-2">
-                    <dt class="text-[13px] font-medium text-[#999999]">Objetivo</dt>
-                    <dd class="mt-1 whitespace-pre-line text-[15px] leading-[1.4] text-white">@(_briefing.Objective ?? "—")</dd>
-                </div>
-                <div class="sm:col-span-2">
-                    <dt class="text-[13px] font-medium text-[#999999]">Descrição</dt>
-                    <dd class="mt-1 whitespace-pre-line text-[15px] leading-[1.4] text-white">@(_briefing.Description ?? "—")</dd>
-                </div>
+        <Card Class="mt-5 p-6">
+            <dl class="grid gap-4 sm:grid-cols-2">
+                @DetailItem(("Solicitante", _briefing.RequesterName ?? "—", false))
+                @DetailItem(("Designer", _briefing.DesignerName ?? "Ainda não assumido", false))
+                @DetailItem(("Área solicitante", _briefing.RequestingArea ?? "—", false))
+                @DetailItem(("Entrega desejada", _briefing.DesiredDeliveryDate?.ToString("dd/MM/yyyy") ?? "—", false))
+                @DetailItem(("Objetivo", _briefing.Objective ?? "—", true))
+                @DetailItem(("Descrição", _briefing.Description ?? "—", true))
             </dl>
+        </Card>
 
-            @if (IsRequester && _briefing.Status is BriefingStatus.Draft or BriefingStatus.Submitted)
-            {
-                <div class="mt-[20px] flex flex-wrap justify-end gap-2">
-                    <button type="button" @onclick="CancelAsync" disabled="@_isBusy"
-                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:opacity-50">
-                        Cancelar briefing
-                    </button>
-                    <button type="button" @onclick="NavigateToEdit" disabled="@_isBusy"
-                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:opacity-50">
-                        Editar
-                    </button>
-                    @if (_briefing.Status is BriefingStatus.Draft)
-                    {
-                        <button type="button" @onclick="SubmitAsync" disabled="@_isBusy"
-                                class="rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium text-black transition hover:opacity-90 disabled:opacity-60">
-                            Enviar para o design
-                        </button>
-                    }
-                </div>
-            }
-
-            @if (IsRequester && _briefing.Status is BriefingStatus.Delivered)
-            {
-                <div class="mt-[20px] flex flex-col gap-[12px] rounded-[20px] border border-[#262626] bg-[#141414] p-[24px]">
-                    <p class="text-[15px] font-medium text-white">A entrega atende ao briefing?</p>
-                    <label for="reason" class="text-[13px] font-medium text-[#999999]">Se não, descreva o que ajustar</label>
-                    <textarea id="reason" rows="3" @bind="_reason" disabled="@_isBusy"
-                              class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50"></textarea>
-                    <div class="flex flex-wrap justify-end gap-2">
-                        <button type="button" @onclick="RequestChangesAsync" disabled="@(_isBusy || string.IsNullOrWhiteSpace(_reason))"
-                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-50">
-                            Solicitar ajustes
-                        </button>
-                        <button type="button" @onclick="AcceptAsync" disabled="@_isBusy"
-                                class="rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium text-black transition hover:opacity-90 disabled:opacity-60">
-                            Aceitar entrega
-                        </button>
-                    </div>
-                </div>
-            }
-
-            @if (IsDesigner && _briefing.Status is BriefingStatus.Submitted && _briefing.DesignerId is null)
-            {
-                <div class="mt-[20px] flex justify-end">
-                    <button type="button" @onclick="ClaimAsync" disabled="@_isBusy"
-                            class="rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium text-black transition hover:opacity-90 disabled:opacity-60">
-                        Assumir briefing
-                    </button>
-                </div>
-            }
-
-            @if (IsAssignee && _briefing.Status is BriefingStatus.InProgress)
-            {
-                <div class="mt-[20px] flex flex-col gap-[12px] rounded-[20px] border border-[#262626] bg-[#141414] p-[24px]">
-                    <label for="note" class="text-[15px] font-medium text-white">Entrega</label>
-                    <p class="text-[13px] text-[#999999]">Cole o link dos arquivos ou descreva o que foi entregue.</p>
-                    <textarea id="note" rows="3" @bind="_deliveryNote" disabled="@_isBusy"
-                              class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50"></textarea>
-                    <div class="flex justify-end">
-                        <button type="button" @onclick="DeliverAsync" disabled="@(_isBusy || string.IsNullOrWhiteSpace(_deliveryNote))"
-                                class="rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
-                            Entregar
-                        </button>
-                    </div>
-                </div>
-            }
+        @if (IsRequester && _briefing.Status is BriefingStatus.Draft or BriefingStatus.Submitted)
+        {
+            <div class="mt-5 flex flex-wrap justify-end gap-2">
+                <Button Variant="ButtonVariant.Secondary" OnClick="CancelAsync" Disabled="_isBusy">Cancelar briefing</Button>
+                <Button Variant="ButtonVariant.Outline" OnClick="NavigateToEdit" Disabled="_isBusy">Editar</Button>
+                @if (_briefing.Status is BriefingStatus.Draft)
+                {
+                    <Button OnClick="SubmitAsync" Disabled="_isBusy">Enviar para o design</Button>
+                }
+            </div>
         }
-    </div>
-</div>
+
+        @if (IsRequester && _briefing.Status is BriefingStatus.Delivered)
+        {
+            <Card Class="mt-5 flex flex-col gap-3 p-6">
+                <CardTitle>A entrega atende ao briefing?</CardTitle>
+                <FormField Label="Se não, descreva o que ajustar" For="reason">
+                    <Textarea id="reason" rows="3" @bind-Value="_reason" disabled="@_isBusy" />
+                </FormField>
+                <div class="flex flex-wrap justify-end gap-2">
+                    <Button Variant="ButtonVariant.Outline" OnClick="RequestChangesAsync" Disabled="@(_isBusy || string.IsNullOrWhiteSpace(_reason))">
+                        Solicitar ajustes
+                    </Button>
+                    <Button OnClick="AcceptAsync" Disabled="_isBusy">Aceitar entrega</Button>
+                </div>
+            </Card>
+        }
+
+        @if (IsDesigner && _briefing.Status is BriefingStatus.Submitted && _briefing.DesignerId is null)
+        {
+            <div class="mt-5 flex justify-end">
+                <Button OnClick="ClaimAsync" Disabled="_isBusy">Assumir briefing</Button>
+            </div>
+        }
+
+        @if (IsAssignee && _briefing.Status is BriefingStatus.InProgress)
+        {
+            <Card Class="mt-5 flex flex-col gap-3 p-6">
+                <FormField Label="Entrega" For="note" Description="Cole o link dos arquivos ou descreva o que foi entregue.">
+                    <Textarea id="note" rows="3" @bind-Value="_deliveryNote" disabled="@_isBusy" />
+                </FormField>
+                <div class="flex justify-end">
+                    <Button OnClick="DeliverAsync" Disabled="@(_isBusy || string.IsNullOrWhiteSpace(_deliveryNote))">Entregar</Button>
+                </div>
+            </Card>
+        }
+    }
+</PageContainer>
 
 @code {
     [Parameter]
@@ -272,6 +222,14 @@
         await LoadAsync();
         _isBusy = false;
     }
+
+    private static RenderFragment DetailItem((string Term, string Value, bool Wide) item) => __builder =>
+    {
+        <div class="@(item.Wide ? "sm:col-span-2" : null)">
+            <dt class="text-caption font-medium text-ink-meta">@item.Term</dt>
+            <dd class="mt-1 whitespace-pre-line text-list text-ink-body">@item.Value</dd>
+        </div>
+    };
 
     private void NavigateToEdit() => NavigationManager.NavigateTo($"/briefings/{Id}/editar");
 

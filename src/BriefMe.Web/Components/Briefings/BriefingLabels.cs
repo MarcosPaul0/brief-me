@@ -1,4 +1,5 @@
 using BriefMe.Domain.Enums;
+using BriefMe.Web.Ui;
 
 namespace BriefMe.Web.Components.Briefings;
 
@@ -20,15 +21,15 @@ public static class BriefingLabels
     };
 
     /// <summary>
-    /// Hierarchy on the dark canvas is ink vs ink-muted; only states that ask for the reader's attention get a
-    /// tint — a delivery waiting for review, and the two final outcomes.
+    /// Only states that ask for the reader's attention get a tint — a delivery waiting for review, and the two
+    /// final outcomes; the rest stay neutral. What each variant looks like is the <see cref="Badge"/>'s call.
     /// </summary>
-    public static string StatusBadgeClass(BriefingStatus status) => status switch
+    public static BadgeVariant StatusBadgeVariant(BriefingStatus status) => status switch
     {
-        BriefingStatus.Completed => "bg-[#22c55e]/10 text-[#22c55e]",
-        BriefingStatus.Delivered => "bg-[#0099ff]/10 text-[#0099ff]",
-        BriefingStatus.Cancelled => "bg-[#ef4444]/10 text-[#ef4444]",
-        _ => "bg-[#1c1c1c] text-[#999999]"
+        BriefingStatus.Completed => BadgeVariant.Success,
+        BriefingStatus.Delivered => BadgeVariant.Info,
+        BriefingStatus.Cancelled => BadgeVariant.Danger,
+        _ => BadgeVariant.Neutral
     };
 
     public static string Priority(Priority priority) => priority switch

@@ -11,40 +11,29 @@
 
 <PageTitle>Fila de briefings</PageTitle>
 
-<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
-    <div class="mx-auto max-w-[1100px]">
-        <div>
-            <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">Fila de briefings</h1>
-            <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
-                Briefings enviados que ainda não têm designer, do mais antigo ao mais recente. Ao assumir um, ele passa a ser seu.
-            </p>
-        </div>
+<PageContainer>
+    <PageHeader Title="Fila de briefings"
+                Description="Briefings enviados que ainda não têm designer, do mais antigo ao mais recente. Ao assumir um, ele passa a ser seu." />
 
-        @if (_actionError is not null)
-        {
-            <div role="alert" class="mt-[20px] rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
-                @_actionError
-            </div>
-        }
+    @if (_actionError is not null)
+    {
+        <Alert Class="mt-5">@_actionError</Alert>
+    }
 
-        <div class="mt-[30px]">
-            <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowRequester="true"
-                               EmptyTitle="A fila está vazia" EmptyHint="Novos briefings aparecem aqui assim que forem enviados."
-                               OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
-                <RowActions Context="briefing">
-                    <button type="button" @onclick="() => NavigateToDetail(briefing.Id)"
-                            class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
-                        Ver
-                    </button>
-                    <button type="button" @onclick="() => ClaimAsync(briefing.Id)" disabled="@(_claimingId is not null)"
-                            class="rounded-[100px] bg-white px-[12px] py-[6px] text-[13px] font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
-                        @(_claimingId == briefing.Id ? "Assumindo..." : "Assumir")
-                    </button>
-                </RowActions>
-            </BriefingListTable>
-        </div>
+    <div class="mt-8">
+        <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowRequester="true"
+                           EmptyTitle="A fila está vazia" EmptyHint="Novos briefings aparecem aqui assim que forem enviados."
+                           OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
+            <RowActions Context="briefing">
+                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToDetail(briefing.Id)">Ver</Button>
+                <Button Size="ButtonSize.Sm" OnClick="() => ClaimAsync(briefing.Id)"
+                        Disabled="_claimingId is not null" Loading="_claimingId == briefing.Id">
+                    @(_claimingId == briefing.Id ? "Assumindo..." : "Assumir")
+                </Button>
+            </RowActions>
+        </BriefingListTable>
     </div>
-</div>
+</PageContainer>
 
 @code {
     private const int PageSize = 20;

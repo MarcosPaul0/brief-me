@@ -9,49 +9,33 @@
 
 <PageTitle>Meu trabalho</PageTitle>
 
-<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
-    <div class="mx-auto max-w-[1100px]">
-        <div>
-            <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">Meu trabalho</h1>
-            <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
-                Briefings que você assumiu, pela data de entrega desejada.
-            </p>
-        </div>
+<PageContainer>
+    <PageHeader Title="Meu trabalho" Description="Briefings que você assumiu, pela data de entrega desejada." />
 
-        <form @onsubmit="ApplyFilterAsync" @onsubmit:preventDefault="true"
-              class="mt-[30px] flex flex-wrap items-end gap-[12px]">
-            <div class="flex flex-col gap-1">
-                <label for="status" class="text-[13px] font-medium text-[#999999]">Status</label>
-                <select id="status" @bind="_statusFilter"
-                        class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none">
-                    <option value="">Todos</option>
-                    @foreach (var status in StatusOptions)
-                    {
-                        <option value="@status.ToString()">@BriefingLabels.Status(status)</option>
-                    }
-                </select>
-            </div>
+    <form @onsubmit="ApplyFilterAsync" @onsubmit:preventDefault="true" class="mt-8 flex flex-wrap items-end gap-3">
+        <FormField Label="Status" For="status">
+            <NativeSelect id="status" @bind-Value="_statusFilter">
+                <option value="">Todos</option>
+                @foreach (var status in StatusOptions)
+                {
+                    <option value="@status.ToString()">@BriefingLabels.Status(status)</option>
+                }
+            </NativeSelect>
+        </FormField>
 
-            <button type="submit"
-                    class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-white transition hover:bg-[#262626]">
-                Aplicar
-            </button>
-        </form>
+        <Button Type="submit" Variant="ButtonVariant.Outline">Aplicar</Button>
+    </form>
 
-        <div class="mt-[20px]">
-            <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowRequester="true"
-                               EmptyTitle="Nenhum briefing por aqui" EmptyHint="Assuma um briefing na fila para começar."
-                               OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
-                <RowActions Context="briefing">
-                    <button type="button" @onclick="() => NavigateToDetail(briefing.Id)"
-                            class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
-                        Abrir
-                    </button>
-                </RowActions>
-            </BriefingListTable>
-        </div>
+    <div class="mt-5">
+        <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowRequester="true"
+                           EmptyTitle="Nenhum briefing por aqui" EmptyHint="Assuma um briefing na fila para começar."
+                           OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
+            <RowActions Context="briefing">
+                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToDetail(briefing.Id)">Abrir</Button>
+            </RowActions>
+        </BriefingListTable>
     </div>
-</div>
+</PageContainer>
 
 @code {
     private const int PageSize = 20;
