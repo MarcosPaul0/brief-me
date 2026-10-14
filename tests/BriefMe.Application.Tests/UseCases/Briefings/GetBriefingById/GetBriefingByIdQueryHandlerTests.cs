@@ -34,7 +34,7 @@ public class GetBriefingByIdQueryHandlerTests
         // Arrange
         var briefing = NewDraft();
         _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default))
+            .Setup(r => r.GetByIdAsync(briefing.Id, default))
             .ReturnsAsync(briefing);
 
         // Act
@@ -48,45 +48,11 @@ public class GetBriefingByIdQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenBriefingHasAttachments_ReturnsThemInTheDto()
-    {
-        // Arrange
-        var briefing = NewDraft();
-        var attachment = briefing.AddAttachment("referencia.pdf", "2026/07/31/a.pdf", 2048, _requesterId);
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default))
-            .ReturnsAsync(briefing);
-
-        // Act
-        var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
-
-        // Assert
-        result.Value.Attachments.Should().ContainSingle()
-            .Which.Id.Should().Be(attachment.Id);
-    }
-
-    [Fact]
-    public async Task Handle_WhenBriefingHasNoAttachments_ReturnsEmptyList()
-    {
-        // Arrange
-        var briefing = NewDraft();
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default))
-            .ReturnsAsync(briefing);
-
-        // Act
-        var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
-
-        // Assert
-        result.Value.Attachments.Should().BeEmpty();
-    }
-
-    [Fact]
     public async Task Handle_WhenBriefingNotFound_ReturnsNotFound()
     {
         // Arrange
         _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(It.IsAny<Guid>(), default))
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default))
             .ReturnsAsync((Briefing?)null);
 
         // Act
@@ -103,7 +69,7 @@ public class GetBriefingByIdQueryHandlerTests
         // Arrange
         var briefing = NewDraft();
         _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default))
+            .Setup(r => r.GetByIdAsync(briefing.Id, default))
             .ReturnsAsync(briefing);
         _currentUserMock.Setup(u => u.UserId).Returns(Guid.NewGuid().ToString());
 
@@ -127,6 +93,6 @@ public class GetBriefingByIdQueryHandlerTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ErrorType.Unauthorized);
-        _briefingRepositoryMock.Verify(r => r.GetByIdWithAttachmentsAsync(It.IsAny<Guid>(), default), Times.Never);
+        _briefingRepositoryMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), default), Times.Never);
     }
 }

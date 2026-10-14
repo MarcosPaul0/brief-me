@@ -23,13 +23,13 @@ public sealed class GetBriefingByIdQueryHandler(
         if (!Guid.TryParse(currentUser.UserId, out var requesterId))
             return Result.Unauthorized<BriefingDetailDto>(CommonErrors.UserNotAuthenticated);
 
-        var briefing = await briefingRepository.GetByIdWithAttachmentsAsync(request.BriefingId, cancellationToken);
+        var briefing = await briefingRepository.GetByIdAsync(request.BriefingId, cancellationToken);
         if (briefing is null)
             return Result.NotFound<BriefingDetailDto>(BriefingErrors.NotFound);
 
         if (briefing.RequesterId != requesterId)
             return Result.Forbidden<BriefingDetailDto>(BriefingErrors.NotOwnerToView);
 
-        return Result.Success(BriefingDetailDto.FromBriefingWithAttachments(briefing));
+        return Result.Success(BriefingDetailDto.FromBriefing(briefing));
     }
 }

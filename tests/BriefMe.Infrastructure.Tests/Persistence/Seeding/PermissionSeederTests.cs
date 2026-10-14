@@ -19,7 +19,7 @@ public class PermissionSeederTests
     private static PermissionSeeder CreateSeeder(AppDbContext context)
     {
         var repository = new PermissionRepository(context);
-        var unitOfWork = new UnitOfWork(context, new RecordingDomainEventDispatcher());
+        var unitOfWork = new UnitOfWork(context);
         return new PermissionSeeder(repository, unitOfWork);
     }
 

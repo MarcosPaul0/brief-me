@@ -46,7 +46,6 @@ public class SubmitBriefingForApprovalCommandHandlerTests
     {
         // Arrange
         var briefing = CompleteDraft();
-        briefing.AddAttachment("brief.pdf", "/storage/brief.pdf", 1024, _requesterId);
         _briefingRepositoryMock
             .Setup(r => r.GetByIdAsync(briefing.Id, default))
             .ReturnsAsync(briefing);
@@ -64,7 +63,6 @@ public class SubmitBriefingForApprovalCommandHandlerTests
     {
         // Arrange
         var briefing = CompleteDraft();
-        briefing.AddAttachment("brief.pdf", "/storage/brief.pdf", 1024, _requesterId);
         _briefingRepositoryMock
             .Setup(r => r.GetByIdAsync(briefing.Id, default))
             .ReturnsAsync(briefing);
@@ -118,7 +116,6 @@ public class SubmitBriefingForApprovalCommandHandlerTests
     {
         // Arrange
         var briefing = CompleteDraft();
-        briefing.AddAttachment("brief.pdf", "/storage/brief.pdf", 1024, _requesterId);
         ForceStatus(briefing, BriefingStatus.Draft);
         _briefingRepositoryMock
             .Setup(r => r.GetByIdAsync(briefing.Id, default))
@@ -139,7 +136,6 @@ public class SubmitBriefingForApprovalCommandHandlerTests
     {
         // Arrange
         var briefing = CompleteDraft();
-        briefing.AddAttachment("brief.pdf", "/storage/brief.pdf", 1024, _requesterId);
         ForceStatus(briefing, BriefingStatus.AwaitingApproval);
         _briefingRepositoryMock
             .Setup(r => r.GetByIdAsync(briefing.Id, default))
@@ -159,7 +155,6 @@ public class SubmitBriefingForApprovalCommandHandlerTests
     {
         // Arrange
         var briefing = CompleteDraft();
-        briefing.AddAttachment("brief.pdf", "/storage/brief.pdf", 1024, _requesterId);
         ForceStatus(briefing, BriefingStatus.ChangesRequested);
         _briefingRepositoryMock
             .Setup(r => r.GetByIdAsync(briefing.Id, default))

@@ -24,15 +24,14 @@ public sealed record BriefingDetailDto(
     Priority Priority,
     Guid CategoryId,
     Guid RequesterId,
-    BriefingStatus Status,
-    IReadOnlyList<AttachmentDto> Attachments)
+    BriefingStatus Status)
 {
     /// <summary>
     /// Maps an aggregate loaded through <c>IBriefingRepository.GetByIdWithAttachmentsAsync</c>. The
     /// attachments are the briefing's own children, not supplementary lookup data, so they are read off the
     /// entity rather than passed in — the factory stays pure either way.
     /// </summary>
-    public static BriefingDetailDto FromBriefingWithAttachments(Briefing briefing)
+    public static BriefingDetailDto FromBriefing(Briefing briefing)
     {
         return new(
             briefing.Id,
@@ -44,7 +43,6 @@ public sealed record BriefingDetailDto(
             briefing.Priority,
             briefing.CategoryId,
             briefing.RequesterId,
-            briefing.Status,
-            [.. briefing.Attachments.Select(AttachmentDto.FromAttachment)]);
+            briefing.Status);
     }
 }

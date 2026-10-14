@@ -18,7 +18,7 @@ public class RoleSeederTests
 
     private static RoleSeeder CreateSeeder(AppDbContext context)
     {
-        var unitOfWork = new UnitOfWork(context, new RecordingDomainEventDispatcher());
+        var unitOfWork = new UnitOfWork(context);
         return new RoleSeeder(new RoleRepository(context), new PermissionRepository(context), unitOfWork);
     }
 
@@ -26,7 +26,7 @@ public class RoleSeederTests
     {
         var seeder = new PermissionSeeder(
             new PermissionRepository(context),
-            new UnitOfWork(context, new RecordingDomainEventDispatcher()));
+            new UnitOfWork(context));
         await seeder.SeedAsync();
     }
 

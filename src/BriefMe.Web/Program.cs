@@ -63,8 +63,6 @@ builder.Services.AddScoped<IPermissionsApiClient, PermissionsApiClient>();
 // Blazor data client for the briefing create/edit form (BRF-013): same "Api" pipeline.
 builder.Services.AddScoped<IBriefingsApiClient, BriefingsApiClient>();
 
-// Blazor data client for the Designer's task board (BRF-033): same "Api" pipeline.
-builder.Services.AddScoped<ITasksApiClient, TasksApiClient>();
 
 
 var app = builder.Build();

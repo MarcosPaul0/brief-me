@@ -1,21 +1,13 @@
 using BriefMe.Application.Abstractions.Messaging;
 using BriefMe.Application.Abstractions;
 using BriefMe.Application.Common.Dtos;
-using BriefMe.Application.UseCases.Briefings.ApproveBriefing;
 using BriefMe.Application.UseCases.Briefings.CancelBriefing;
 using BriefMe.Application.UseCases.Briefings.CreateBriefing;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
-using BriefMe.Application.UseCases.Briefings.GetBriefingsPendingApproval;
-using BriefMe.Application.UseCases.Briefings.GetBriefingTracking;
-using BriefMe.Application.UseCases.Briefings.RejectBriefing;
-using BriefMe.Application.UseCases.Briefings.RemoveBriefingAttachment;
-using BriefMe.Application.UseCases.Briefings.RequestChangesBriefing;
 using BriefMe.Application.UseCases.Briefings.SubmitBriefingForApproval;
-using BriefMe.Application.UseCases.Briefings.UploadBriefingAttachment;
 using BriefMe.Application.UseCases.Briefings;
-using BriefMe.Application.UseCases.Sla.GetOverdueBriefings;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Constants;
 using BriefMe.Domain.Enums;
@@ -122,7 +114,7 @@ public class BriefingsControllerTests
         RequesterId: Guid.NewGuid(),
         BriefingStatus.Draft);
 
-    private static BriefingDetailDto SampleDetailDto(Guid id, params AttachmentDto[] attachments) => new(
+    private static BriefingDetailDto SampleDetailDto(Guid id) => new(
         id,
         "Campanha de lançamento",
         Description: null,
@@ -132,30 +124,7 @@ public class BriefingsControllerTests
         Priority.Medium,
         CategoryId: Guid.NewGuid(),
         RequesterId: Guid.NewGuid(),
-        BriefingStatus.Draft,
-        attachments);
-
-    private static AttachmentDto SampleAttachmentDto(Guid briefingId) => new(
-        Guid.NewGuid(),
-        briefingId,
-        TaskId: null,
-        "referencia.pdf",
-        SizeBytes: 1024,
-        UploadedById: Guid.NewGuid(),
-        UploadedAt: DateTime.UtcNow);
-
-    private static BriefingTrackingDto SampleTrackingDto(Guid id) => new(
-        id,
-        "Campanha de lançamento",
-        Objective: null,
-        CategoryId: Guid.NewGuid(),
-        DesiredDeliveryDate: null,
-        Priority.Medium,
-        BriefingStatus.InProgress,
-        RequesterId: Guid.NewGuid(),
-        RequesterName: "Clara Solicitante",
-        new BriefingProgressDto(TotalTasks: 4, ApprovedTasks: 2, Percentage: 50m, IsComplete: false),
-        []);
+        BriefingStatus.Draft);
 
     [Fact]
     public async Task Create_WhenCallerHasBriefingsCreatePermission_ReturnsCreatedWithLocation()
@@ -289,209 +258,13 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task Approve_WhenCallerHasBriefingsApprovePermission_ReturnsOkWithApprovedBriefing()
-    {
-        // Arrange
-        var briefingId = Guid.NewGuid();
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<ApproveBriefingCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(SampleDto(briefingId) with { Status = BriefingStatus.Approved }));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Approve]));
-
-        // Act
-        var response = await client.PostAsync($"/briefings/{briefingId}/approve", content: null);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<BriefingDto>();
-        body!.Status.Should().Be(BriefingStatus.Approved);
-    }
-
-    [Fact]
-    public async Task Approve_WhenCallerIsDesignerWithoutApprovePermission_ReturnsForbidden()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
-
-        // Act
-        var response = await client.PostAsync($"/briefings/{Guid.NewGuid()}/approve", content: null);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<ApproveBriefingCommand>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task Approve_WhenBriefingLeftAwaitingApproval_ReturnsConflictProblem()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<ApproveBriefingCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Conflict<BriefingDto>("Briefing não está aguardando aprovação."));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Approve]));
-
-        // Act
-        var response = await client.PostAsync($"/briefings/{Guid.NewGuid()}/approve", content: null);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        problem!.Detail.Should().Be("Briefing não está aguardando aprovação.");
-    }
-
-    [Fact]
-    public async Task Reject_WhenCallerHasBriefingsRejectPermission_ForwardsJustificationAndReturnsOk()
-    {
-        // Arrange
-        var briefingId = Guid.NewGuid();
-        RejectBriefingCommand? capturedCommand = null;
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<RejectBriefingCommand>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest<Result<BriefingDto>>, CancellationToken>((c, _) => capturedCommand = (RejectBriefingCommand)c)
-            .ReturnsAsync(Result.Success(SampleDto(briefingId) with { Status = BriefingStatus.Rejected }));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Reject]));
-
-        // Act
-        var response = await client.PostAsJsonAsync(
-            $"/briefings/{briefingId}/reject",
-            new RejectBriefingRequest("Escopo fora da capacidade do time."));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        capturedCommand.Should().NotBeNull();
-        capturedCommand!.BriefingId.Should().Be(briefingId);
-        capturedCommand.Justification.Should().Be("Escopo fora da capacidade do time.");
-    }
-
-    [Fact]
-    public async Task Reject_WhenCallerLacksBriefingsRejectPermission_ReturnsForbidden()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Approve]));
-
-        // Act
-        var response = await client.PostAsJsonAsync(
-            $"/briefings/{Guid.NewGuid()}/reject",
-            new RejectBriefingRequest("Escopo fora da capacidade do time."));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<RejectBriefingCommand>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task Reject_WhenJustificationIsEmpty_ReturnsValidationProblem()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<RejectBriefingCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Failure<BriefingDto>([new ValidationError("Justification", "Justificativa é obrigatória.")]));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Reject]));
-
-        // Act
-        var response = await client.PostAsJsonAsync($"/briefings/{Guid.NewGuid()}/reject", new RejectBriefingRequest(string.Empty));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        problem!.Errors.Should().ContainKey("Justification");
-    }
-
-    [Fact]
-    public async Task RequestChanges_WhenCallerHasRequestAdjustmentsPermission_ReturnsOkWithChangesRequested()
-    {
-        // Arrange
-        var briefingId = Guid.NewGuid();
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<RequestChangesBriefingCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(SampleDto(briefingId) with { Status = BriefingStatus.ChangesRequested }));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.RequestAdjustments]));
-
-        // Act
-        var response = await client.PostAsJsonAsync(
-            $"/briefings/{briefingId}/request-changes",
-            new RequestChangesBriefingRequest("Detalhar o público-alvo da campanha."));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<BriefingDto>();
-        body!.Status.Should().Be(BriefingStatus.ChangesRequested);
-    }
-
-    [Fact]
-    public async Task RequestChanges_WhenCallerLacksRequestAdjustmentsPermission_ReturnsForbidden()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Approve]));
-
-        // Act
-        var response = await client.PostAsJsonAsync(
-            $"/briefings/{Guid.NewGuid()}/request-changes",
-            new RequestChangesBriefingRequest("Detalhar o público-alvo da campanha."));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<RequestChangesBriefingCommand>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task RequestChanges_WhenBriefingDoesNotExist_ReturnsNotFoundProblem()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<RequestChangesBriefingCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.NotFound<BriefingDto>("Briefing não encontrado."));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.RequestAdjustments]));
-
-        // Act
-        var response = await client.PostAsJsonAsync(
-            $"/briefings/{Guid.NewGuid()}/request-changes",
-            new RequestChangesBriefingRequest("Detalhar o público-alvo da campanha."));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        problem!.Detail.Should().Be("Briefing não encontrado.");
-    }
-
-    [Fact]
     public async Task GetById_WhenCallerHasViewOwnPermission_ReturnsOkWithBriefingDetailDto()
     {
         // Arrange
         var briefingId = Guid.NewGuid();
         var senderMock = new Mock<ISender>();
         senderMock.Setup(s => s.Send(It.IsAny<GetBriefingByIdQuery>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(SampleDetailDto(briefingId, SampleAttachmentDto(briefingId))));
+            .ReturnsAsync(Result.Success(SampleDetailDto(briefingId)));
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
@@ -504,7 +277,6 @@ public class BriefingsControllerTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<BriefingDetailDto>();
         body!.Id.Should().Be(briefingId);
-        body.Attachments.Should().ContainSingle();
     }
 
     [Fact]
@@ -542,71 +314,6 @@ public class BriefingsControllerTests
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         senderMock.Verify(s => s.Send(It.IsAny<GetBriefingByIdQuery>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task GetTracking_WhenCallerHasViewOwnPermission_ReturnsOkWithProgress()
-    {
-        // Arrange
-        var briefingId = Guid.NewGuid();
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<GetBriefingTrackingQuery>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(SampleTrackingDto(briefingId)));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewOwn]));
-
-        // Act
-        var response = await client.GetAsync($"/briefings/{briefingId}/tracking");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<BriefingTrackingDto>();
-        body!.Id.Should().Be(briefingId);
-        body.Progress.Percentage.Should().Be(50m);
-    }
-
-    /// <summary>
-    /// The Design Manager holds <c>briefings.view-all</c> and not <c>briefings.view-own</c> (USR-047), so
-    /// the "any of" gate is what makes tracking reachable for the profile that runs the pipeline (BRF-039).
-    /// </summary>
-    [Fact]
-    public async Task GetTracking_WhenCallerOnlyHasViewAllPermission_ReturnsOk()
-    {
-        // Arrange
-        var briefingId = Guid.NewGuid();
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<GetBriefingTrackingQuery>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(SampleTrackingDto(briefingId)));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewAll]));
-
-        // Act
-        var response = await client.GetAsync($"/briefings/{briefingId}/tracking");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task GetTracking_WhenCallerLacksBothViewPermissions_ReturnsForbidden()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
-
-        // Act
-        var response = await client.GetAsync($"/briefings/{Guid.NewGuid()}/tracking");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<GetBriefingTrackingQuery>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -653,254 +360,5 @@ public class BriefingsControllerTests
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         senderMock.Verify(s => s.Send(It.IsAny<GetBriefingsByRequesterQuery>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task GetPendingApproval_WhenCallerHasViewAllPermission_MapsPaginationAndReturnsOk()
-    {
-        // Arrange
-        GetBriefingsPendingApprovalQuery? capturedQuery = null;
-        var pagedResult = PagedDto<PendingApprovalBriefingDto>.Create([], page: 2, pageSize: 5, totalCount: 0);
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<GetBriefingsPendingApprovalQuery>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest<Result<PagedDto<PendingApprovalBriefingDto>>>, CancellationToken>((q, _) => capturedQuery = (GetBriefingsPendingApprovalQuery)q)
-            .ReturnsAsync(Result.Success(pagedResult));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewAll]));
-
-        // Act
-        var response = await client.GetAsync("/briefings/pending-approval?page=2&pageSize=5");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        capturedQuery.Should().NotBeNull();
-        capturedQuery!.Page.Should().Be(2);
-        capturedQuery.PageSize.Should().Be(5);
-    }
-
-    [Fact]
-    public async Task GetPendingApproval_WhenCallerOnlyHasViewOwnPermission_ReturnsForbidden()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewOwn]));
-
-        // Act
-        var response = await client.GetAsync("/briefings/pending-approval");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<GetBriefingsPendingApprovalQuery>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task GetOverdue_WhenCallerHasViewAllPermission_ForwardsQueryWithDefaultPagingAndReturnsOk()
-    {
-        // Arrange
-        GetOverdueBriefingsQuery? capturedQuery = null;
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<GetOverdueBriefingsQuery>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest<Result<PagedDto<OverdueBriefingDto>>>, CancellationToken>((q, _) => capturedQuery = (GetOverdueBriefingsQuery)q)
-            .ReturnsAsync(Result.Success(PagedDto<OverdueBriefingDto>.Create([], 1, 20, 0)));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewAll]));
-
-        // Act
-        var response = await client.GetAsync("/briefings/overdue");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        capturedQuery.Should().NotBeNull();
-        capturedQuery!.Page.Should().Be(1);
-        capturedQuery.PageSize.Should().Be(20);
-    }
-
-    [Fact]
-    public async Task GetOverdue_WhenPagingIsGiven_ForwardsIt()
-    {
-        // Arrange
-        GetOverdueBriefingsQuery? capturedQuery = null;
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<GetOverdueBriefingsQuery>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest<Result<PagedDto<OverdueBriefingDto>>>, CancellationToken>((q, _) => capturedQuery = (GetOverdueBriefingsQuery)q)
-            .ReturnsAsync(Result.Success(PagedDto<OverdueBriefingDto>.Create([], 3, 50, 0)));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewAll]));
-
-        // Act
-        var response = await client.GetAsync("/briefings/overdue?page=3&pageSize=50");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        capturedQuery!.Page.Should().Be(3);
-        capturedQuery.PageSize.Should().Be(50);
-    }
-
-    [Fact]
-    public async Task GetOverdue_WhenCallerOnlyHasViewOwnPermission_ReturnsForbidden()
-    {
-        // Arrange — the delay list crosses every requester's demands, which is exactly what the
-        // ownership-scoped permission does not open.
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewOwn]));
-
-        // Act
-        var response = await client.GetAsync("/briefings/overdue");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<GetOverdueBriefingsQuery>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task UploadAttachment_WhenFilePartIsPresent_ForwardsFileMetadataAndReturnsOk()
-    {
-        // Arrange
-        var briefingId = Guid.NewGuid();
-        var bytes = "conteudo-de-referencia"u8.ToArray();
-        string? capturedFileName = null;
-        long capturedSize = 0;
-        var capturedHasContent = false;
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<UploadBriefingAttachmentCommand>(), It.IsAny<CancellationToken>()))
-            // Read inside the callback: the request stream is disposed once the response completes.
-            .Callback<IRequest<Result<AttachmentDto>>, CancellationToken>((c, _) =>
-            {
-                var command = (UploadBriefingAttachmentCommand)c;
-                capturedFileName = command.FileName;
-                capturedSize = command.SizeBytes;
-                capturedHasContent = command.Content is not null;
-            })
-            .ReturnsAsync(Result.Success(SampleAttachmentDto(briefingId)));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
-
-        // Act
-        using var upload = new MultipartFormDataContent { { new ByteArrayContent(bytes), "file", "referencia.pdf" } };
-        var response = await client.PostAsync($"/briefings/{briefingId}/attachments", upload);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        capturedFileName.Should().Be("referencia.pdf");
-        capturedSize.Should().Be(bytes.Length);
-        capturedHasContent.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task UploadAttachment_WhenFilePartIsMissing_DispatchesEmptyCommandAndReturnsValidationProblem()
-    {
-        // Arrange
-        var capturedHasContent = true;
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<UploadBriefingAttachmentCommand>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest<Result<AttachmentDto>>, CancellationToken>((c, _) =>
-                capturedHasContent = ((UploadBriefingAttachmentCommand)c).Content is not null)
-            .ReturnsAsync(Result.Failure<AttachmentDto>([new ValidationError("Content", "File content is required.")]));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
-
-        // Act — a multipart body carrying everything but the file part.
-        using var upload = new MultipartFormDataContent { { new StringContent("referencia"), "kind" } };
-        var response = await client.PostAsync($"/briefings/{Guid.NewGuid()}/attachments", upload);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        capturedHasContent.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task UploadAttachment_WhenCallerLacksCreatePermission_ReturnsForbidden()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewOwn]));
-
-        // Act
-        using var upload = new MultipartFormDataContent { { new ByteArrayContent("x"u8.ToArray()), "file", "referencia.pdf" } };
-        var response = await client.PostAsync($"/briefings/{Guid.NewGuid()}/attachments", upload);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<UploadBriefingAttachmentCommand>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task RemoveAttachment_WhenCallerHasCreatePermission_ReturnsOkWithRemainingAttachments()
-    {
-        // Arrange
-        var briefingId = Guid.NewGuid();
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<RemoveBriefingAttachmentCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(SampleDetailDto(briefingId)));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
-
-        // Act
-        var response = await client.DeleteAsync($"/briefings/{briefingId}/attachments/{Guid.NewGuid()}");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<BriefingDetailDto>();
-        body!.Attachments.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task RemoveAttachment_WhenAttachmentDoesNotExist_ReturnsNotFoundProblem()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<RemoveBriefingAttachmentCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.NotFound<BriefingDetailDto>("Anexo não encontrado."));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
-
-        // Act
-        var response = await client.DeleteAsync($"/briefings/{Guid.NewGuid()}/attachments/{Guid.NewGuid()}");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        problem!.Detail.Should().Be("Anexo não encontrado.");
-    }
-
-    [Fact]
-    public async Task RemoveAttachment_WhenCallerLacksCreatePermission_ReturnsForbidden()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewOwn]));
-
-        // Act
-        var response = await client.DeleteAsync($"/briefings/{Guid.NewGuid()}/attachments/{Guid.NewGuid()}");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<RemoveBriefingAttachmentCommand>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

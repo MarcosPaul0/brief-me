@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help watch css build run test up down db-up db-down db-logs minio-up minio-logs
+.PHONY: help watch css build run test up down db-up db-down db-logs
 
 WEB := src/BriefMe.Web
 
@@ -24,17 +24,11 @@ run: ## Roda app sem watch
 test: ## Roda testes
 	dotnet test
 
-up: ## Sobe toda a stack (Postgres + MinIO) em background
+up: ## Sobe toda a stack (Postgres) em background
 	docker compose up -d
 
 down: ## Para a stack (mantem volumes/dados)
 	docker compose down
-
-minio-up: ## Sobe MinIO em background (API :9000, console :9001)
-	docker compose up -d minio
-
-minio-logs: ## Segue logs do MinIO
-	docker compose logs -f minio
 
 db-up: ## Sobe Postgres em background
 	docker compose up -d db

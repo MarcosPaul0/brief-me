@@ -170,7 +170,7 @@ public class UserRepositoryTests
         await context.SaveChangesAsync();
 
         var repository = new UserRepository(context);
-        var unitOfWork = new UnitOfWork(context, new RecordingDomainEventDispatcher());
+        var unitOfWork = new UnitOfWork(context);
 
         // Act
         var trackedUser = await repository.GetByIdWithRolesAsync(user.Id);

@@ -24,14 +24,6 @@ public class AppDbContext : DbContext
 
     public DbSet<Briefing> Briefings => Set<Briefing>();
 
-    public DbSet<Attachment> Attachments => Set<Attachment>();
-
-    public DbSet<BriefingTask> Tasks => Set<BriefingTask>();
-
-    public DbSet<Comment> Comments => Set<Comment>();
-
-    public DbSet<SlaRule> SlaRules => Set<SlaRule>();
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());

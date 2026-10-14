@@ -35,7 +35,7 @@ public class AdminUserSeederTests
             new UserRepository(context),
             new RoleRepository(context),
             hasher,
-            new UnitOfWork(context, new RecordingDomainEventDispatcher()));
+            new UnitOfWork(context));
 
     private static async Task<Role> SeedAdminRoleAsync(AppDbContext context)
     {
