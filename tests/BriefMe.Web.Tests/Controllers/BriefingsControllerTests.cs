@@ -3,9 +3,12 @@ using BriefMe.Application.Abstractions;
 using BriefMe.Application.Common.Dtos;
 using BriefMe.Application.UseCases.Briefings.AcceptBriefingDelivery;
 using BriefMe.Application.UseCases.Briefings.CancelBriefing;
+using BriefMe.Application.UseCases.Briefings.ClaimBriefing;
 using BriefMe.Application.UseCases.Briefings.CreateBriefing;
+using BriefMe.Application.UseCases.Briefings.DeliverBriefing;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
+using BriefMe.Application.UseCases.Briefings.GetBriefingQueue;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
 using BriefMe.Application.UseCases.Briefings.RequestBriefingChanges;
 using BriefMe.Application.UseCases.Briefings.SubmitBriefing;
@@ -452,4 +455,84 @@ public class BriefingsControllerTests
             It.Is<RequestBriefingChangesCommand>(c => c.BriefingId == briefingId && c.Reason == "Use the new logo"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task GetQueue_WhenCallerIsRequester_ReturnsForbidden()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
+
+        // Act
+        var response = await client.GetAsync("/briefings/queue");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task GetQueue_WhenCallerIsDesigner_ForwardsPaging()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetBriefingQueueQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(PagedDto<BriefingListItemDto>.Create([], 2, 5, 0)));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
+
+        // Act
+        await client.GetAsync("/briefings/queue?page=2&pageSize=5");
+
+        // Assert
+        senderMock.Verify(s => s.Send(
+            It.Is<GetBriefingQueueQuery>(q => q.Page == 2 && q.PageSize == 5),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Claim_WhenAnotherDesignerWon_ReturnsConflictProblem()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<ClaimBriefingCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Conflict<BriefingDto>("already claimed"));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
+
+        // Act
+        var response = await client.PostAsync($"/briefings/{Guid.NewGuid()}/claim", null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task Deliver_WhenCallerIsDesigner_ForwardsTheNote()
+    {
+        // Arrange
+        var briefingId = Guid.NewGuid();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<DeliverBriefingCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(SampleDto(briefingId, BriefingStatus.Delivered)));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
+
+        // Act
+        await client.PostAsJsonAsync($"/briefings/{briefingId}/deliver", new DeliverBriefingRequest("https://files.example/v1"));
+
+        // Assert
+        senderMock.Verify(s => s.Send(
+            It.Is<DeliverBriefingCommand>(c => c.BriefingId == briefingId && c.DeliveryNote == "https://files.example/v1"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
+

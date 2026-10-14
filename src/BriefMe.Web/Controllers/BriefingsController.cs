@@ -1,9 +1,13 @@
 using BriefMe.Application.Abstractions.Messaging;
 using BriefMe.Application.UseCases.Briefings.AcceptBriefingDelivery;
 using BriefMe.Application.UseCases.Briefings.CancelBriefing;
+using BriefMe.Application.UseCases.Briefings.ClaimBriefing;
 using BriefMe.Application.UseCases.Briefings.CreateBriefing;
+using BriefMe.Application.UseCases.Briefings.DeliverBriefing;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
+using BriefMe.Application.UseCases.Briefings.GetBriefingQueue;
+using BriefMe.Application.UseCases.Briefings.GetBriefingsByDesigner;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
 using BriefMe.Application.UseCases.Briefings.RequestBriefingChanges;
 using BriefMe.Application.UseCases.Briefings.SubmitBriefing;
@@ -126,4 +130,50 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao solicitar ajustes");
     }
+
+    /// <summary>The open queue: submitted briefings no designer has claimed yet, oldest first.</summary>
+    [HttpGet("queue")]
+    [Authorize(Roles = Designer)]
+    public async Task<IActionResult> GetQueue(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(new GetBriefingQueueQuery(page, pageSize), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar a fila de briefings");
+    }
+
+    /// <summary>The briefings the calling designer claimed.</summary>
+    [HttpGet("assigned")]
+    [Authorize(Roles = Designer)]
+    public async Task<IActionResult> GetAssigned(
+        [FromQuery] BriefingStatus? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(new GetBriefingsByDesignerQuery(page, pageSize, status), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar seus briefings");
+    }
+
+    [HttpPost("{id:guid}/claim")]
+    [Authorize(Roles = Designer)]
+    public async Task<IActionResult> Claim(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new ClaimBriefingCommand(id), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao assumir o briefing");
+    }
+
+    [HttpPost("{id:guid}/deliver")]
+    [Authorize(Roles = Designer)]
+    public async Task<IActionResult> Deliver(Guid id, DeliverBriefingRequest request, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new DeliverBriefingCommand(id, request.DeliveryNote), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao entregar o briefing");
+    }
 }
+

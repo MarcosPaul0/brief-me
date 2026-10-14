@@ -1,4 +1,5 @@
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 
 namespace BriefMe.Domain.Repositories;
 
@@ -25,4 +26,26 @@ public interface IBriefingRepository : IRepository<Briefing>
         Guid requesterId,
         BriefingFilter filter,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One page of the open queue: submitted briefings nobody has claimed yet, oldest first, so designers
+    /// pick up whatever has waited longest. The total comes from <see cref="CountQueueAsync"/>.
+    /// </summary>
+    Task<IReadOnlyList<Briefing>> GetQueueAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+
+    Task<int> CountQueueAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One page of the briefings claimed by <paramref name="designerId"/>, optionally filtered by status,
+    /// ordered by desired delivery date (undated last) then creation. The total comes from
+    /// <see cref="CountByDesignerAsync"/>.
+    /// </summary>
+    Task<IReadOnlyList<Briefing>> GetByDesignerAsync(
+        Guid designerId,
+        BriefingStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<int> CountByDesignerAsync(Guid designerId, BriefingStatus? status, CancellationToken cancellationToken = default);
 }

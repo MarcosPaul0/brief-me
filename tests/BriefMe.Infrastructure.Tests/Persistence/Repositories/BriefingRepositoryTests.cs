@@ -225,4 +225,94 @@ public class BriefingRepositoryTests
         fetched.Should().NotBeNull();
         fetched!.Id.Should().Be(briefing.Id);
     }
+
+    private static void SetDesigner(Briefing briefing, Guid designerId) =>
+        typeof(Briefing).GetProperty(nameof(Briefing.DesignerId))!.SetValue(briefing, designerId);
+
+    private static Briefing Claimed(Guid designerId, BriefingStatus status, DateOnly? desiredDate, DateTime createdAt)
+    {
+        var briefing = Briefing.Create("Briefing", Priority.Medium, Guid.NewGuid(), Guid.NewGuid(),
+            desiredDeliveryDate: desiredDate);
+        briefing.CreatedAt = createdAt;
+        SetStatus(briefing, status);
+        SetDesigner(briefing, designerId);
+        return briefing;
+    }
+
+    [Fact]
+    public async Task GetQueueAsync_WhenBriefingsHaveMixedStates_ReturnsOnlyUnclaimedSubmittedOldestFirst()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var older = NewBriefing(Guid.NewGuid(), new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), BriefingStatus.Submitted);
+        var newer = NewBriefing(Guid.NewGuid(), new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), BriefingStatus.Submitted);
+        var draft = NewBriefing(Guid.NewGuid(), new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc));
+        var claimed = Claimed(Guid.NewGuid(), BriefingStatus.InProgress, null, new DateTime(2025, 12, 2, 0, 0, 0, DateTimeKind.Utc));
+        await context.Briefings.AddRangeAsync(newer, draft, older, claimed);
+        await context.SaveChangesAsync();
+        var repository = new BriefingRepository(context);
+
+        // Act
+        var result = await repository.GetQueueAsync(1, 10);
+
+        // Assert
+        result.Select(b => b.Id).Should().Equal(older.Id, newer.Id);
+    }
+
+    [Fact]
+    public async Task CountQueueAsync_WhenPaged_CountsEveryQueuedBriefing()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.Briefings.AddRangeAsync(
+            NewBriefing(Guid.NewGuid(), DateTime.UtcNow, BriefingStatus.Submitted),
+            NewBriefing(Guid.NewGuid(), DateTime.UtcNow, BriefingStatus.Submitted),
+            NewBriefing(Guid.NewGuid(), DateTime.UtcNow, BriefingStatus.Cancelled));
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await new BriefingRepository(context).CountQueueAsync();
+
+        // Assert
+        result.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetByDesignerAsync_WhenDesignerHasWork_ReturnsOnlyTheirsByDesiredDateWithUndatedLast()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var designerId = Guid.NewGuid();
+        var created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var undated = Claimed(designerId, BriefingStatus.InProgress, null, created);
+        var later = Claimed(designerId, BriefingStatus.InProgress, new DateOnly(2026, 3, 1), created);
+        var sooner = Claimed(designerId, BriefingStatus.Delivered, new DateOnly(2026, 2, 1), created);
+        var someoneElses = Claimed(Guid.NewGuid(), BriefingStatus.InProgress, new DateOnly(2026, 1, 15), created);
+        await context.Briefings.AddRangeAsync(undated, later, sooner, someoneElses);
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await new BriefingRepository(context).GetByDesignerAsync(designerId, null, 1, 10);
+
+        // Assert
+        result.Select(b => b.Id).Should().Equal(sooner.Id, later.Id, undated.Id);
+    }
+
+    [Fact]
+    public async Task CountByDesignerAsync_WhenFilteredByStatus_CountsMatchingOnly()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var designerId = Guid.NewGuid();
+        await context.Briefings.AddRangeAsync(
+            Claimed(designerId, BriefingStatus.InProgress, null, DateTime.UtcNow),
+            Claimed(designerId, BriefingStatus.Delivered, null, DateTime.UtcNow));
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await new BriefingRepository(context).CountByDesignerAsync(designerId, BriefingStatus.Delivered);
+
+        // Assert
+        result.Should().Be(1);
+    }
 }
