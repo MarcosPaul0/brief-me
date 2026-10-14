@@ -52,7 +52,7 @@ public class BriefingsControllerTests
     };
 
     // Mirrors UsersControllerTests: builds a token straight from claims, since these tests target the
-    // Web-layer authorization pipeline (permission policies), not JwtService's claim population.
+    // Web-layer authorization pipeline (role gates), not JwtService's claim population.
     private static string GenerateToken(JwtSettings settings, Guid userId, string[]? roles = null)
     {
         var keyBytes = Encoding.UTF8.GetBytes(settings.SecretKey);

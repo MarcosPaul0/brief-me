@@ -48,7 +48,7 @@ public class UsersControllerTests
     };
 
     // Builds a token directly from claims (rather than JwtService + domain entities) because these
-    // tests target the Web-layer authorization pipeline (permission policies, self-service bypass),
+    // tests target the Web-layer authorization pipeline (role gates, self-service bypass),
     // not JwtService's claim-population logic — which depends on EF-fixed-up navigation properties
     // that a bare in-memory User/Role graph never populates.
     private static string GenerateToken(JwtSettings settings, Guid userId, string[]? roles = null)

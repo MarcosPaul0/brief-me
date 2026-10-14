@@ -5,8 +5,7 @@ using BriefMe.Application.UseCases.Briefings;
 namespace BriefMe.Application.UseCases.Briefings.SubmitBriefing;
 
 /// <summary>
-/// Submits a briefing for approval (RF007, BRF-007), moving it from <c>Draft</c>/<c>ChangesRequested</c> to
-/// <c>AwaitingApproval</c>. The submitter is the authenticated user (<c>ICurrentUser</c>) and must own the
-/// briefing; therefore only the target <see cref="BriefingId"/> is carried.
+/// Sends a draft to the designer queue (<c>Draft</c> → <c>Submitted</c>). The submitter is the authenticated
+/// user and must own the briefing, so only the target <see cref="BriefingId"/> is carried.
 /// </summary>
 public sealed record SubmitBriefingCommand(Guid BriefingId) : ICommand<BriefingDto>;

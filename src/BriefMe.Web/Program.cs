@@ -64,7 +64,7 @@ builder.Services.AddScoped<ICategoriesApiClient, CategoriesApiClient>();
 
 var app = builder.Build();
 
-// Apply pending migrations and seed the permission catalog / native data on startup (USR-046+).
+// Apply pending migrations and seed the admin user and default categories on startup.
 await app.Services.MigrateAndSeedAsync();
 
 // Configure the HTTP request pipeline.
