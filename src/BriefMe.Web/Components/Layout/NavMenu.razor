@@ -2,7 +2,7 @@
 @inject NavigationManager NavigationManager
 
 <div class="flex h-full flex-col gap-6 p-[20px]">
-    <a href="" class="text-[20px] font-medium tracking-[-0.4px] text-white">BriefMe</a>
+    <a href="" class="px-4 text-subhead font-bold text-primary">BriefMe</a>
 
     <nav class="flex flex-1 flex-col gap-1" aria-label="Navegação principal">
         <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Início</NavLink>
@@ -24,10 +24,9 @@
     </nav>
 
     <AuthorizeView>
-        <button type="button" @onclick="LogoutAsync" disabled="@_isLoggingOut"
-                class="inline-flex items-center justify-center rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-60">
+        <Button Variant="ButtonVariant.Outline" OnClick="LogoutAsync" Loading="_isLoggingOut">
             @(_isLoggingOut ? "Saindo..." : "Sair")
-        </button>
+        </Button>
     </AuthorizeView>
 </div>
 
