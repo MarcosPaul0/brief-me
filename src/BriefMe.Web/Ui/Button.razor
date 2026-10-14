@@ -1,6 +1,6 @@
 @*
-    The app's action control (DESIGN-sap.md button-primary / button-outline). Renders an <a> when Href is set,
-    otherwise a <button>. Loading implies disabled and shows a spinner before the label.
+    The app's action control (DESIGN-clay.md button-primary / button-secondary). Renders an <a> when Href is set,
+    otherwise a <button>. Icon leads the label; Loading implies disabled and swaps the icon for a spinner.
 *@
 @if (Href is not null)
 {
@@ -36,6 +36,10 @@ else
     [Parameter]
     public string? Href { get; set; }
 
+    /// <summary>Leading glyph before the label.</summary>
+    [Parameter]
+    public IconName? Icon { get; set; }
+
     [Parameter]
     public EventCallback<MouseEventArgs> OnClick { get; set; }
 
@@ -56,12 +60,16 @@ else
         {
             <Spinner />
         }
+        else if (Icon is { } icon)
+        {
+            <Icon Name="icon" />
+        }
         @ChildContent
     };
 
     private string Classes => ClassNames.Join(
-        "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors " +
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary " +
+        "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md transition-colors " +
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink " +
         "disabled:cursor-not-allowed disabled:opacity-50",
         VariantClasses,
         SizeClasses,
@@ -69,20 +77,21 @@ else
 
     private string VariantClasses => Variant switch
     {
-        ButtonVariant.Secondary => "bg-chrome text-ink-body hover:bg-band",
-        ButtonVariant.Outline => "border border-hairline/60 bg-canvas text-primary-deep hover:bg-band-blue",
-        ButtonVariant.Ghost => "text-ink-list hover:bg-chrome hover:text-ink",
-        ButtonVariant.Link => "text-primary underline-offset-4 hover:underline",
-        ButtonVariant.Destructive => "bg-negative text-on-primary hover:bg-negative/90",
-        _ => "bg-primary text-on-primary hover:bg-primary-deep"
+        ButtonVariant.Secondary => "bg-surface-card text-ink hover:bg-surface-strong",
+        ButtonVariant.Outline => "border border-hairline bg-canvas text-ink hover:bg-surface-soft",
+        ButtonVariant.Ghost => "text-body hover:bg-surface-card hover:text-ink",
+        ButtonVariant.Link => "font-semibold text-ink underline underline-offset-4",
+        ButtonVariant.Destructive => "bg-error-ink text-on-primary active:bg-error-ink/90",
+        _ => "bg-primary text-on-primary active:bg-primary-active " +
+             "disabled:bg-primary-disabled disabled:text-muted disabled:opacity-100"
     };
 
     private string SizeClasses => (Variant, Size) switch
     {
         // A link-styled button keeps the text's own box so it lines up with surrounding copy.
-        (ButtonVariant.Link, ButtonSize.Sm) => "text-caption",
-        (ButtonVariant.Link, _) => "text-link",
-        (_, ButtonSize.Sm) => "h-8 px-3 text-caption",
-        _ => "h-11 px-3.5 text-button"
+        (ButtonVariant.Link, ButtonSize.Sm) => "gap-1.5 text-body-sm",
+        (ButtonVariant.Link, _) => "gap-1.5 text-body-md",
+        (_, ButtonSize.Sm) => "h-9 rounded-sm px-3.5 text-button",
+        _ => "h-11 px-5 text-button"
     };
 }

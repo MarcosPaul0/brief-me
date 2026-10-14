@@ -15,7 +15,7 @@
 <PageContainer>
     <PageHeader Title="Usuários" Description="Gerencie os usuários e seus perfis de acesso.">
         <Actions>
-            <Button OnClick="NavigateToNew">Novo usuário</Button>
+            <Button Icon="IconName.UserPlus" OnClick="NavigateToNew">Novo usuário</Button>
         </Actions>
     </PageHeader>
 
@@ -51,7 +51,7 @@
             </NativeSelect>
         </FormField>
 
-        <Button Type="submit" Variant="ButtonVariant.Outline">Aplicar</Button>
+        <Button Type="submit" Variant="ButtonVariant.Outline" Icon="IconName.Filter">Aplicar</Button>
     </form>
 
     <Card Class="mt-5 overflow-hidden">
@@ -62,12 +62,12 @@
         else if (_errorMessage is not null)
         {
             <EmptyState Title="@_errorMessage" Tone="EmptyStateTone.Danger">
-                <Button Variant="ButtonVariant.Secondary" OnClick="ReloadAsync">Tentar novamente</Button>
+                <Button Variant="ButtonVariant.Secondary" Icon="IconName.RotateCcw" OnClick="ReloadAsync">Tentar novamente</Button>
             </EmptyState>
         }
         else if (_page is null || _page.Items.Count == 0)
         {
-            <EmptyState Title="Nenhum usuário encontrado" Description="Ajuste os filtros e tente novamente." />
+            <EmptyState Title="Nenhum usuário encontrado" Description="Ajuste os filtros e tente novamente." Icon="IconName.Users" />
         }
         else
         {
@@ -97,7 +97,7 @@
                             </TableCell>
                             <TableCell>@UserRoleLabels.Label(user.Role)</TableCell>
                             <TableCell Class="text-right">
-                                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToEdit(user.UserId)">Editar</Button>
+                                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Pencil" OnClick="() => NavigateToEdit(user.UserId)">Editar</Button>
                             </TableCell>
                         </TableRow>
                     }

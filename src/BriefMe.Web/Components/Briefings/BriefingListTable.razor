@@ -13,12 +13,12 @@
     else if (ErrorMessage is not null)
     {
         <EmptyState Title="@ErrorMessage" Tone="EmptyStateTone.Danger">
-            <Button Variant="ButtonVariant.Secondary" OnClick="OnRetry">Tentar novamente</Button>
+            <Button Variant="ButtonVariant.Secondary" Icon="IconName.RotateCcw" OnClick="OnRetry">Tentar novamente</Button>
         </EmptyState>
     }
     else if (Page is null || Page.Items.Count == 0)
     {
-        <EmptyState Title="@EmptyTitle" Description="@EmptyHint" />
+        <EmptyState Title="@EmptyTitle" Description="@EmptyHint" Icon="IconName.Inbox" />
     }
     else
     {

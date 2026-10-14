@@ -6,12 +6,15 @@ namespace BriefMe.Web.Ui;
 /// </summary>
 internal static class UiClasses
 {
-    /// <summary>A text-like control on the canvas: hairline rule, 8px corner, primary focus ring.</summary>
+    /// <summary>
+    /// DESIGN-clay.md <c>text-input</c>: cream canvas, hairline rule, 12px corner, 44px tall; focus thickens the
+    /// rule to ink (<c>text-input-focused</c>).
+    /// </summary>
     public const string Control =
-        "w-full rounded-md border border-hairline/40 bg-canvas px-3 py-2.5 text-list text-ink-body " +
-        "placeholder:text-ink-meta/70 transition-colors focus:border-primary focus:outline-none " +
-        "focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-chrome disabled:opacity-70 " +
-        "aria-[invalid=true]:border-negative";
+        "min-h-11 w-full rounded-md border border-hairline bg-canvas px-4 py-2.5 text-body-md text-ink " +
+        "placeholder:text-muted-soft transition-colors focus:border-ink focus:outline-none " +
+        "focus:ring-1 focus:ring-ink disabled:cursor-not-allowed disabled:bg-surface-soft disabled:text-muted " +
+        "aria-[invalid=true]:border-error-ink aria-[invalid=true]:focus:ring-error-ink";
 
-    public const string FieldMessage = "text-caption text-negative";
+    public const string FieldMessage = "text-caption text-error-ink";
 }

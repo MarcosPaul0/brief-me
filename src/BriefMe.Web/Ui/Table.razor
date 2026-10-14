@@ -1,5 +1,5 @@
 @*
-    Data table chrome (ex-data-table-cell): horizontal scroll wrapper, caption-sized header, hairline row rules.
+    Data table chrome (ex-data-table-cell): horizontal scroll wrapper, uppercase caption header, hairline row rules.
     Header takes TableHead cells; ChildContent takes TableRow rows. Class goes on the <table> (e.g. a min width).
 *@
 <div class="overflow-x-auto">
@@ -7,7 +7,7 @@
         @if (Header is not null)
         {
             <thead>
-                <tr class="border-b border-band">@Header</tr>
+                <tr class="border-b border-hairline">@Header</tr>
             </thead>
         }
         <tbody>@ChildContent</tbody>

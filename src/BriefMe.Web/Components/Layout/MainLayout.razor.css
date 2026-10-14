@@ -1,8 +1,8 @@
-/* Theme variables come from Styles/app.tailwind.css (@theme) — DESIGN-sap.md tokens. */
+/* Theme variables come from Styles/app.tailwind.css (@theme) — DESIGN-clay.md tokens. */
 #blazor-error-ui {
-    background: var(--color-negative-surface);
-    color: var(--color-negative);
-    border-top: 1px solid var(--color-negative);
+    background: var(--color-error-surface);
+    color: var(--color-error-ink);
+    border-top: 1px solid var(--color-error);
     bottom: 0;
     box-sizing: border-box;
     display: none;
@@ -14,7 +14,7 @@
 }
 
 #blazor-error-ui .reload {
-    color: var(--color-primary);
+    color: var(--color-ink);
     text-decoration: underline;
 }
 

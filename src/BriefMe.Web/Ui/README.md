@@ -1,13 +1,13 @@
 # Ui — shared primitives
 
 shadcn/ui-style building blocks for `BriefMe.Web`: owned in the repo, styled once from the
-`DESIGN-sap.md` tokens (Tailwind `@theme` in `Styles/app.tailwind.css`), composed by `Pages/` and
+`DESIGN-clay.md` tokens (Tailwind `@theme` in `Styles/app.tailwind.css`), composed by `Pages/` and
 `Components/<Feature>/`. They know tokens only — never DTOs, API clients, Application or Domain types.
 
 Conventions shared by every primitive:
 
 - `Class` is appended after the primitive's own classes (`ClassNames.Join`, the `cn()` equivalent). There is no
-  tailwind-merge: to override a property the primitive already sets, mark it important (`text-negative!`).
+  tailwind-merge: to override a property the primitive already sets, mark it important (`text-error-ink!`).
 - Unmatched attributes (`id`, `aria-*`, `rows`, `disabled`, `type`, ...) pass through to the root element.
 - Variants are enums mapped by a `switch` inside the component (the `cva` equivalent).
 
@@ -15,11 +15,12 @@ Conventions shared by every primitive:
 
 | Component | Parameters | Notes |
 | --- | --- | --- |
-| `Button` | `Variant` (`Default`, `Secondary`, `Outline`, `Ghost`, `Link`, `Destructive`), `Size` (`Default` 44px, `Sm`), `Type` (`button`), `Disabled`, `Loading`, `Href`, `OnClick` | `Loading` disables and shows a `Spinner`. `Href` renders an `<a>`. |
+| `Button` | `Variant` (`Default`, `Secondary`, `Outline`, `Ghost`, `Link`, `Destructive`), `Size` (`Default` 44px, `Sm`), `Type` (`button`), `Disabled`, `Loading`, `Href`, `Icon`, `OnClick` | `Icon` leads the label. `Loading` disables and swaps the icon for a `Spinner`. `Href` renders an `<a>`. A trailing glyph (e.g. "Próxima ›") goes in `ChildContent`. |
 | `Spinner` | `Class` | Inherits the text colour. |
+| `Icon` | `Name` (`IconName`), `Size` (px, default 16), `Label`, `Class` | Lucide line glyph (`IconPaths`, ISC), stroked in `currentColor`. Decorative (`aria-hidden`) unless `Label` is set. New glyph: add to `IconName` + `IconPaths`. |
 
 ```razor
-<Button OnClick="SaveAsync" Loading="_isSaving">@(_isSaving ? "Salvando..." : "Salvar")</Button>
+<Button Icon="IconName.Save" OnClick="SaveAsync" Loading="_isSaving">@(_isSaving ? "Salvando..." : "Salvar")</Button>
 <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => Open(item.Id)">Abrir</Button>
 ```
 
@@ -52,12 +53,12 @@ Two families, like shadcn's `Input` vs `Form*`:
 
 | Component | Parameters | Notes |
 | --- | --- | --- |
-| `Card`, `CardTitle`, `CardDescription` | `Class` | Flat canvas surface, 12px corner, band rule. Padding is the caller's (`Class="p-6"`). |
+| `Card`, `CardTitle`, `CardDescription` | `Tone` (`Default`, `Cream`, `Pink`, `Teal`, `Lavender`, `Peach`, `Ochre`), `Class` | Flat, no shadow. `Default` is the canvas card (16px corner, hairline rule); the others are the saturated feature cards (24px) — highlights only, never the same tone twice in a row. Padding is the caller's (`Class="p-6"`). |
 | `Badge` | `Variant` (`Neutral`, `Info`, `Success`, `Warning`, `Danger`) | Features map their states to a variant, e.g. `BriefingLabels.StatusBadgeVariant`. |
-| `Alert` | `Variant` (`Danger` default, `Warning`, `Info`, `Success`), `Title` | `role="alert"` for Danger/Warning, `status` otherwise. |
+| `Alert` | `Variant` (`Danger` default, `Warning`, `Info`, `Success`), `Title` | Led by the variant's icon. `role="alert"` for Danger/Warning, `status` otherwise. |
 | `Dialog` | `Open`, `OnClose`, `Title`, `Description`, `Dismissible`, `ChildContent`, `Footer` | Not rendered when closed. Backdrop/Esc call `OnClose` when dismissible. |
 | `LoadingState` | `Text` | Centred spinner + text for a loading region. |
-| `EmptyState` | `Title`, `Description`, `Tone` (`Default`, `Danger`), `ChildContent` (action) | Empty, not found or failed load. |
+| `EmptyState` | `Title`, `Description`, `Tone` (`Default`, `Danger`), `Icon`, `ChildContent` (action) | Empty, not found or failed load. `Icon` sits in a disc above the title; Danger defaults to an alert glyph. |
 
 ```razor
 <Dialog Open="_target is not null" OnClose="Dismiss" Dismissible="!_busy" Title="Cancelar briefing"

@@ -1,15 +1,18 @@
 @*
-    Message strip for a form or action outcome. Danger and Warning interrupt (role=alert); Info and Success are
-    announced politely (role=status).
+    Message strip for a form or action outcome, led by its variant's icon. Danger and Warning interrupt (role=alert);
+    Info and Success are announced politely (role=status).
 *@
 <div role="@(Variant is AlertVariant.Danger or AlertVariant.Warning ? "alert" : "status")"
-     class="@ClassNames.Join("rounded-md border-l-4 px-4 py-3 text-caption", VariantClasses, Class)"
+     class="@ClassNames.Join("flex gap-3 rounded-md border px-4 py-3 text-body-sm", VariantClasses, Class)"
      @attributes="AdditionalAttributes">
-    @if (Title is not null)
-    {
-        <p class="font-medium">@Title</p>
-    }
-    <div class="@(Title is null ? null : "mt-1 text-ink-body")">@ChildContent</div>
+    <Icon Name="VariantIcon" Size="18" Class="mt-px" />
+    <div class="min-w-0 flex-1">
+        @if (Title is not null)
+        {
+            <p class="text-title-sm">@Title</p>
+        }
+        <div class="@(Title is null ? null : "mt-1 text-body")">@ChildContent</div>
+    </div>
 </div>
 
 @code {
@@ -28,11 +31,19 @@
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
 
+    private IconName VariantIcon => Variant switch
+    {
+        AlertVariant.Info => IconName.Info,
+        AlertVariant.Success => IconName.CircleCheck,
+        AlertVariant.Warning => IconName.TriangleAlert,
+        _ => IconName.CircleAlert
+    };
+
     private string VariantClasses => Variant switch
     {
-        AlertVariant.Info => "border-primary bg-band-blue text-primary-deep",
-        AlertVariant.Success => "border-positive bg-positive-surface text-positive",
-        AlertVariant.Warning => "border-critical bg-critical-surface text-critical",
-        _ => "border-negative bg-negative-surface text-negative"
+        AlertVariant.Info => "border-brand-lavender bg-info-surface text-info-ink",
+        AlertVariant.Success => "border-success bg-success-surface text-success-ink",
+        AlertVariant.Warning => "border-warning bg-warning-surface text-warning-ink",
+        _ => "border-error bg-error-surface text-error-ink"
     };
 }

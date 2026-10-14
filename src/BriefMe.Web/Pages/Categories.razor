@@ -34,9 +34,9 @@
             <div class="flex items-center justify-end gap-2">
                 @if (_editingId is not null)
                 {
-                    <Button Variant="ButtonVariant.Secondary" OnClick="ResetForm" Disabled="_isSaving">Cancelar</Button>
+                    <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="ResetForm" Disabled="_isSaving">Cancelar</Button>
                 }
-                <Button Type="submit" Loading="_isSaving">
+                <Button Type="submit" Icon="IconName.Save" Loading="_isSaving">
                     @(_isSaving ? "Salvando..." : _editingId is null ? "Adicionar" : "Salvar")
                 </Button>
             </div>
@@ -51,12 +51,12 @@
         else if (_loadError is not null)
         {
             <EmptyState Title="@_loadError" Tone="EmptyStateTone.Danger">
-                <Button Variant="ButtonVariant.Secondary" OnClick="LoadAsync">Tentar novamente</Button>
+                <Button Variant="ButtonVariant.Secondary" Icon="IconName.RotateCcw" OnClick="LoadAsync">Tentar novamente</Button>
             </EmptyState>
         }
         else if (_categories.Count == 0)
         {
-            <EmptyState Title="Nenhuma categoria cadastrada." />
+            <EmptyState Title="Nenhuma categoria cadastrada." Icon="IconName.Tag" />
         }
         else
         {
@@ -85,8 +85,8 @@
                             </TableCell>
                             <TableCell Class="text-right">
                                 <div class="flex items-center justify-end gap-3">
-                                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => StartEdit(category)">Editar</Button>
-                                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Class="text-ink-meta!"
+                                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Pencil" OnClick="() => StartEdit(category)">Editar</Button>
+                                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Class="text-muted!" Icon="IconName.Power"
                                             OnClick="() => ToggleStatusAsync(category)" Disabled="_togglingId == category.Id">
                                         @(category.IsActive ? "Desativar" : "Ativar")
                                     </Button>

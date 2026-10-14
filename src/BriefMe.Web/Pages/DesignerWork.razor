@@ -10,7 +10,11 @@
 <PageTitle>Meu trabalho</PageTitle>
 
 <PageContainer>
-    <PageHeader Title="Meu trabalho" Description="Briefings que você assumiu, pela data de entrega desejada." />
+    <PageHeader Title="Meu trabalho" Description="Briefings que você assumiu, pela data de entrega desejada.">
+        <Actions>
+            <Button Href="briefings/fila" Icon="IconName.Inbox">Ver fila de briefings</Button>
+        </Actions>
+    </PageHeader>
 
     <form @onsubmit="ApplyFilterAsync" @onsubmit:preventDefault="true" class="mt-8 flex flex-wrap items-end gap-3">
         <FormField Label="Status" For="status">
@@ -23,7 +27,7 @@
             </NativeSelect>
         </FormField>
 
-        <Button Type="submit" Variant="ButtonVariant.Outline">Aplicar</Button>
+        <Button Type="submit" Variant="ButtonVariant.Outline" Icon="IconName.Filter">Aplicar</Button>
     </form>
 
     <div class="mt-5">
@@ -31,7 +35,7 @@
                            EmptyTitle="Nenhum briefing por aqui" EmptyHint="Assuma um briefing na fila para começar."
                            OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
             <RowActions Context="briefing">
-                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToDetail(briefing.Id)">Abrir</Button>
+                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Eye" OnClick="() => NavigateToDetail(briefing.Id)">Abrir</Button>
             </RowActions>
         </BriefingListTable>
     </div>

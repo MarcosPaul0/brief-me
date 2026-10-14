@@ -1,16 +1,17 @@
 @* Pager under a list: position summary plus previous/next, each disabled at its bound. *@
-<div class="@ClassNames.Join("flex flex-wrap items-center justify-between gap-3 border-t border-band px-4 py-3", Class)">
-    <p class="text-caption text-ink-meta">
+<div class="@ClassNames.Join("flex flex-wrap items-center justify-between gap-3 border-t border-hairline px-4 py-3", Class)">
+    <p class="text-body-sm text-muted">
         Página @Page de @Math.Max(TotalPages, 1) • @TotalCount @ItemLabel
     </p>
     <div class="flex items-center gap-2">
         <Button Variant="ButtonVariant.Outline" Size="ButtonSize.Sm" Disabled="@(Page <= 1)"
-                OnClick="() => OnPageChange.InvokeAsync(Page - 1)">
+                Icon="IconName.ChevronLeft" OnClick="() => OnPageChange.InvokeAsync(Page - 1)">
             Anterior
         </Button>
         <Button Variant="ButtonVariant.Outline" Size="ButtonSize.Sm" Disabled="@(Page >= TotalPages)"
                 OnClick="() => OnPageChange.InvokeAsync(Page + 1)">
             Próxima
+            <Icon Name="IconName.ChevronRight" />
         </Button>
     </div>
 </div>

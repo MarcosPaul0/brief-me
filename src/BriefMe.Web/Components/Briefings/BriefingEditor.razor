@@ -22,8 +22,8 @@
         else if (_loadState is not null)
         {
             <Card>
-                <EmptyState Title="@_loadState">
-                    <Button Variant="ButtonVariant.Secondary" OnClick="NavigateAway">Voltar</Button>
+                <EmptyState Title="@_loadState" Icon="IconName.FileText">
+                    <Button Variant="ButtonVariant.Secondary" Icon="IconName.ArrowLeft" OnClick="NavigateAway">Voltar</Button>
                 </EmptyState>
             </Card>
         }
@@ -54,7 +54,7 @@
                     {
                         <FormField Label="Categoria" For="category">
                             <Input id="category" Value="Nenhuma categoria ativa disponível." aria-invalid="true" disabled />
-                            <p class="text-caption text-negative">Não é possível criar um briefing sem uma categoria. Solicite a configuração de categorias.</p>
+                            <p class="text-caption text-error-ink">Não é possível criar um briefing sem uma categoria. Solicite a configuração de categorias.</p>
                         </FormField>
                     }
                     else
@@ -98,13 +98,13 @@
                     </FormField>
 
                     <div class="mt-2 flex flex-wrap items-center justify-end gap-2">
-                        <Button Variant="ButtonVariant.Secondary" OnClick="NavigateAway" Disabled="_isSubmitting">Cancelar</Button>
-                        <Button Type="submit" Variant="ButtonVariant.Outline" OnClick="() => _pendingAction = SubmitAction.SaveDraft"
+                        <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="NavigateAway" Disabled="_isSubmitting">Cancelar</Button>
+                        <Button Type="submit" Variant="ButtonVariant.Outline" Icon="IconName.Save" OnClick="() => _pendingAction = SubmitAction.SaveDraft"
                                 Disabled="@(_isSubmitting || _categoriesUnavailable)"
                                 Loading="@(_isSubmitting && _pendingAction == SubmitAction.SaveDraft)">
                             @(_isSubmitting && _pendingAction == SubmitAction.SaveDraft ? "Salvando..." : "Salvar rascunho")
                         </Button>
-                        <Button Type="submit" OnClick="() => _pendingAction = SubmitAction.Submit"
+                        <Button Type="submit" Icon="IconName.Send" OnClick="() => _pendingAction = SubmitAction.Submit"
                                 Disabled="@(_isSubmitting || _categoriesUnavailable)"
                                 Loading="@(_isSubmitting && _pendingAction == SubmitAction.Submit)">
                             @(_isSubmitting && _pendingAction == SubmitAction.Submit ? "Enviando..." : "Enviar para o design")

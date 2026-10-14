@@ -22,7 +22,7 @@
         {
             <Card>
                 <EmptyState Title="@(_loadError ?? "Usuário não encontrado")" Tone="@(_loadError is null ? EmptyStateTone.Default : EmptyStateTone.Danger)">
-                    <Button Variant="ButtonVariant.Secondary" OnClick="NavigateToList">Voltar para a lista</Button>
+                    <Button Variant="ButtonVariant.Secondary" Icon="IconName.ArrowLeft" OnClick="NavigateToList">Voltar para a lista</Button>
                 </EmptyState>
             </Card>
         }
@@ -67,8 +67,8 @@
                     </FormField>
 
                     <div class="mt-2 flex items-center justify-end gap-2">
-                        <Button Variant="ButtonVariant.Secondary" OnClick="NavigateToList" Disabled="_isSubmitting">Cancelar</Button>
-                        <Button Type="submit" Loading="_isSubmitting">@(_isSubmitting ? "Salvando..." : "Salvar")</Button>
+                        <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="NavigateToList" Disabled="_isSubmitting">Cancelar</Button>
+                        <Button Type="submit" Icon="IconName.Save" Loading="_isSubmitting">@(_isSubmitting ? "Salvando..." : "Salvar")</Button>
                     </div>
                 </EditForm>
             </Card>

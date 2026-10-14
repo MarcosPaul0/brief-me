@@ -1,5 +1,5 @@
-@* list-item cell. Primary marks the row's identifying column (title, name) in ink. *@
-<td class="@ClassNames.Join("px-4 py-3 text-list", Primary ? "font-medium text-ink" : "font-[350] text-ink-list", Class)" @attributes="AdditionalAttributes">@ChildContent</td>
+@* Body cell. Primary marks the row's identifying column (title, name) in semibold ink. *@
+<td class="@ClassNames.Join("px-4 py-3.5 text-body-sm", Primary ? "font-semibold text-ink" : "text-body", Class)" @attributes="AdditionalAttributes">@ChildContent</td>
 
 @code {
     [Parameter]

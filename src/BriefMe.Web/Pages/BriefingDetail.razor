@@ -13,7 +13,7 @@
 <PageTitle>@(_briefing?.Title ?? "Briefing")</PageTitle>
 
 <PageContainer Width="PageWidth.Md">
-    <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Class="-ml-3" OnClick="NavigateBack">← Voltar</Button>
+    <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Class="-ml-3" Icon="IconName.ArrowLeft" OnClick="NavigateBack">Voltar</Button>
 
     @if (_isLoading)
     {
@@ -24,7 +24,7 @@
     else if (_loadError is not null || _briefing is null)
     {
         <Card Class="mt-5">
-            <EmptyState Title="@(_loadError ?? "Briefing não encontrado")" />
+            <EmptyState Title="@(_loadError ?? "Briefing não encontrado")" Icon="IconName.FileText" />
         </Card>
     }
     else
@@ -50,18 +50,18 @@
 
         @if (_briefing.DeliveryNote is not null)
         {
-            <Card Class="mt-5 p-5">
-                <p class="text-caption font-medium text-ink-meta">
+            <Card Tone="CardTone.Cream" Class="mt-5 p-6">
+                <p class="text-caption-uppercase uppercase text-muted">
                     Entrega @(_briefing.DeliveredAt is { } at ? $"em {at.ToLocalTime():dd/MM/yyyy HH:mm}" : "")
                 </p>
                 @if (Uri.TryCreate(_briefing.DeliveryNote, UriKind.Absolute, out var link) && (link.Scheme == Uri.UriSchemeHttp || link.Scheme == Uri.UriSchemeHttps))
                 {
                     <a href="@link" target="_blank" rel="noopener noreferrer"
-                       class="mt-1 block break-all text-link text-primary hover:underline">@_briefing.DeliveryNote</a>
+                       class="mt-2 block break-all text-body-md font-semibold text-ink underline underline-offset-4">@_briefing.DeliveryNote</a>
                 }
                 else
                 {
-                    <p class="mt-1 whitespace-pre-line text-list text-ink-body">@_briefing.DeliveryNote</p>
+                    <p class="mt-2 whitespace-pre-line text-body-md text-body-strong">@_briefing.DeliveryNote</p>
                 }
             </Card>
         }
@@ -80,11 +80,11 @@
         @if (IsRequester && _briefing.Status is BriefingStatus.Draft or BriefingStatus.Submitted)
         {
             <div class="mt-5 flex flex-wrap justify-end gap-2">
-                <Button Variant="ButtonVariant.Secondary" OnClick="CancelAsync" Disabled="_isBusy">Cancelar briefing</Button>
-                <Button Variant="ButtonVariant.Outline" OnClick="NavigateToEdit" Disabled="_isBusy">Editar</Button>
+                <Button Variant="ButtonVariant.Secondary" Icon="IconName.Ban" OnClick="CancelAsync" Disabled="_isBusy">Cancelar briefing</Button>
+                <Button Variant="ButtonVariant.Outline" Icon="IconName.Pencil" OnClick="NavigateToEdit" Disabled="_isBusy">Editar</Button>
                 @if (_briefing.Status is BriefingStatus.Draft)
                 {
-                    <Button OnClick="SubmitAsync" Disabled="_isBusy">Enviar para o design</Button>
+                    <Button Icon="IconName.Send" OnClick="SubmitAsync" Disabled="_isBusy">Enviar para o design</Button>
                 }
             </div>
         }
@@ -97,10 +97,10 @@
                     <Textarea id="reason" rows="3" @bind-Value="_reason" disabled="@_isBusy" />
                 </FormField>
                 <div class="flex flex-wrap justify-end gap-2">
-                    <Button Variant="ButtonVariant.Outline" OnClick="RequestChangesAsync" Disabled="@(_isBusy || string.IsNullOrWhiteSpace(_reason))">
+                    <Button Variant="ButtonVariant.Outline" Icon="IconName.RotateCcw" OnClick="RequestChangesAsync" Disabled="@(_isBusy || string.IsNullOrWhiteSpace(_reason))">
                         Solicitar ajustes
                     </Button>
-                    <Button OnClick="AcceptAsync" Disabled="_isBusy">Aceitar entrega</Button>
+                    <Button Icon="IconName.Check" OnClick="AcceptAsync" Disabled="_isBusy">Aceitar entrega</Button>
                 </div>
             </Card>
         }
@@ -108,7 +108,7 @@
         @if (IsDesigner && _briefing.Status is BriefingStatus.Submitted && _briefing.DesignerId is null)
         {
             <div class="mt-5 flex justify-end">
-                <Button OnClick="ClaimAsync" Disabled="_isBusy">Assumir briefing</Button>
+                <Button Icon="IconName.Hand" OnClick="ClaimAsync" Disabled="_isBusy">Assumir briefing</Button>
             </div>
         }
 
@@ -119,7 +119,7 @@
                     <Textarea id="note" rows="3" @bind-Value="_deliveryNote" disabled="@_isBusy" />
                 </FormField>
                 <div class="flex justify-end">
-                    <Button OnClick="DeliverAsync" Disabled="@(_isBusy || string.IsNullOrWhiteSpace(_deliveryNote))">Entregar</Button>
+                    <Button Icon="IconName.PackageCheck" OnClick="DeliverAsync" Disabled="@(_isBusy || string.IsNullOrWhiteSpace(_deliveryNote))">Entregar</Button>
                 </div>
             </Card>
         }
@@ -226,8 +226,8 @@
     private static RenderFragment DetailItem((string Term, string Value, bool Wide) item) => __builder =>
     {
         <div class="@(item.Wide ? "sm:col-span-2" : null)">
-            <dt class="text-caption font-medium text-ink-meta">@item.Term</dt>
-            <dd class="mt-1 whitespace-pre-line text-list text-ink-body">@item.Value</dd>
+            <dt class="text-caption-uppercase uppercase text-muted">@item.Term</dt>
+            <dd class="mt-1 whitespace-pre-line text-body-md text-body-strong">@item.Value</dd>
         </div>
     };
 

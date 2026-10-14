@@ -25,8 +25,8 @@
                            EmptyTitle="A fila está vazia" EmptyHint="Novos briefings aparecem aqui assim que forem enviados."
                            OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
             <RowActions Context="briefing">
-                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToDetail(briefing.Id)">Ver</Button>
-                <Button Size="ButtonSize.Sm" OnClick="() => ClaimAsync(briefing.Id)"
+                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Eye" OnClick="() => NavigateToDetail(briefing.Id)">Ver</Button>
+                <Button Size="ButtonSize.Sm" Icon="IconName.Hand" OnClick="() => ClaimAsync(briefing.Id)"
                         Disabled="_claimingId is not null" Loading="_claimingId == briefing.Id">
                     @(_claimingId == briefing.Id ? "Assumindo..." : "Assumir")
                 </Button>

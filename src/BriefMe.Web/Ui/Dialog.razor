@@ -4,14 +4,14 @@
 *@
 @if (Open)
 {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" @onclick="DismissAsync">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-surface-dark/40 px-4" @onclick="DismissAsync">
         <div role="dialog" aria-modal="true" aria-labelledby="@_titleId" aria-describedby="@(Description is null ? null : _descriptionId)"
              tabindex="-1" @onkeydown="OnKeyDownAsync" @onclick:stopPropagation="true"
-             class="@ClassNames.Join("w-full max-w-[440px] rounded-lg bg-canvas p-8 focus:outline-none", Class)">
-            <h2 id="@_titleId" class="text-subhead font-medium text-ink">@Title</h2>
+             class="@ClassNames.Join("w-full max-w-[440px] rounded-xl bg-canvas p-8 focus:outline-none", Class)">
+            <h2 id="@_titleId" class="text-title-lg text-ink">@Title</h2>
             @if (Description is not null)
             {
-                <p id="@_descriptionId" class="mt-2 text-list text-ink-list">@Description</p>
+                <p id="@_descriptionId" class="mt-2 text-body-sm text-body">@Description</p>
             }
 
             @ChildContent

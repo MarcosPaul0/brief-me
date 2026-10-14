@@ -1,19 +1,21 @@
 /*
- * nav-link inside the nav-bar (DESIGN-sap.md): nav-link type in ink-nav on the chrome grey, square; the active
- * link takes the primary blue with an underline, like the active product tab. Theme variables come from
+ * nav-link inside the top-nav (DESIGN-clay.md category-tab / category-tab-active): nav-link type in muted on the
+ * canvas, pill-shaped; the active link takes the cream-card fill and ink text. Theme variables come from
  * Styles/app.tailwind.css. ::deep because the <a> is rendered by the NavLink child component.
  */
 ::deep .nav-link {
     display: flex;
     align-items: center;
-    padding: 0 12px;
-    border-bottom: 2px solid transparent;
-    color: var(--color-ink-nav);
-    font-size: 15px;
-    line-height: 21px;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius-pill);
+    color: var(--color-muted);
+    font-size: var(--text-nav-link);
+    font-weight: var(--text-nav-link--font-weight);
+    line-height: var(--text-nav-link--line-height);
     white-space: nowrap;
     text-decoration: none;
-    transition: border-color 0.15s, color 0.15s;
+    transition: background-color 0.15s, color 0.15s;
 }
 
 ::deep .nav-link:hover {
@@ -21,12 +23,11 @@
 }
 
 ::deep .nav-link.active {
-    border-bottom-color: var(--color-primary);
-    color: var(--color-primary);
-    font-weight: 500;
+    background-color: var(--color-surface-card);
+    color: var(--color-ink);
 }
 
 ::deep .nav-link:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: -2px;
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
 }

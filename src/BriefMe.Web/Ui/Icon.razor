@@ -1,0 +1,29 @@
+@*
+    Line icon (Lucide shapes, IconPaths) stroked in the current text colour, so it takes the tone of whatever holds it.
+    Decorative by default (aria-hidden); pass Label when the icon carries meaning on its own.
+*@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="@Size" height="@Size"
+     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+     aria-hidden="@(Label is null ? "true" : null)" role="@(Label is null ? null : "img")" aria-label="@Label"
+     class="@ClassNames.Join("shrink-0", Class)" @attributes="AdditionalAttributes">
+    @((MarkupString)IconPaths.For(Name))
+</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public IconName Name { get; set; }
+
+    /// <summary>Width and height in px. 16 sits with button and body text; 20–24 for standalone marks.</summary>
+    [Parameter]
+    public int Size { get; set; } = 16;
+
+    /// <summary>Accessible name; leave null when adjacent text already says the same thing.</summary>
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+}

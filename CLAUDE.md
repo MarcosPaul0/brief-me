@@ -55,7 +55,7 @@ Domain ← Application ← Infrastructure
 ### Web (`BriefMe.Web`)
 - Routable pages (`@page`) in `Pages/` — one page = one screen/route
 - Shared UI primitives in `Ui/` (namespace `BriefMe.Web.Ui`; catalogue in `Ui/README.md`) — shadcn-style `Button`,
-  `FormField`/`Form*` fields, `Card`, `Badge`, `Alert`, `Dialog`, `Table`, `PageHeader`, ... styled from the SAP
+  `FormField`/`Form*` fields, `Card`, `Badge`, `Alert`, `Dialog`, `Table`, `PageHeader`, ... styled from the Clay
   design tokens (`Styles/app.tailwind.css` `@theme`). Pages and components compose them; no hex colours or
   hand-rolled control markup outside `Ui/`
 - Reusable UI parts in `Components/` (`Auth/`, `Briefings/`, `Layout/`, `Users/`) — building blocks composed into pages

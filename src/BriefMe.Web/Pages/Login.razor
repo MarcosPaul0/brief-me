@@ -8,10 +8,19 @@
 
 <PageTitle>Entrar</PageTitle>
 
-<div class="flex min-h-screen items-center justify-center bg-chrome px-4">
-    <Card Class="w-full max-w-[400px] p-6 sm:p-8">
-        <h1 class="text-section-title font-medium text-ink">Entrar</h1>
-        <p class="mt-2 text-link text-ink-meta">Acesse sua conta para continuar.</p>
+<div class="flex min-h-screen items-center justify-center bg-canvas px-4 py-12">
+    <div class="grid w-full max-w-[960px] items-stretch gap-6 lg:grid-cols-[7fr_5fr]">
+    <Card Tone="CardTone.Teal" Class="hidden flex-col justify-between gap-12 p-8 lg:flex">
+        <span class="text-title-lg">BriefMe</span>
+        <div>
+            <p class="text-display-md">Do briefing à entrega, em um só fluxo.</p>
+            <p class="mt-4 text-body-md text-on-dark-soft">Solicitantes enviam, designers assumem e entregam — tudo rastreado.</p>
+        </div>
+    </Card>
+
+    <Card Class="w-full p-6 sm:p-8">
+        <h1 class="text-display-sm text-ink">Entrar</h1>
+        <p class="mt-2 text-body-md text-muted">Acesse sua conta para continuar.</p>
 
         <EditForm Model="Model" FormName="login" OnValidSubmit="HandleValidSubmitAsync" class="mt-8 flex flex-col gap-4">
             <DataAnnotationsValidator />
@@ -31,11 +40,12 @@
                 <FormMessage For="() => Model.Password" />
             </FormField>
 
-            <Button Type="submit" Loading="_isSubmitting" Class="mt-2 w-full">
+            <Button Type="submit" Icon="IconName.LogIn" Loading="_isSubmitting" Class="mt-2 w-full">
                 @(_isSubmitting ? "Entrando..." : "Entrar")
             </Button>
         </EditForm>
     </Card>
+    </div>
 </div>
 
 @code {

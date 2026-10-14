@@ -16,7 +16,7 @@
 <PageContainer>
     <PageHeader Title="Meus briefings" Description="Acompanhe o andamento das suas solicitações de design.">
         <Actions>
-            <Button OnClick="NavigateToNew">Novo briefing</Button>
+            <Button Icon="IconName.Plus" OnClick="NavigateToNew">Novo briefing</Button>
         </Actions>
     </PageHeader>
 
@@ -44,7 +44,7 @@
             </FormField>
         }
 
-        <Button Type="submit" Variant="ButtonVariant.Outline">Aplicar</Button>
+        <Button Type="submit" Variant="ButtonVariant.Outline" Icon="IconName.Filter">Aplicar</Button>
     </form>
 
     @if (_actionError is not null)
@@ -57,11 +57,11 @@
                            EmptyHint="Ajuste os filtros ou abra um novo briefing."
                            OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
             <RowActions Context="briefing">
-                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToDetail(briefing.Id)">Abrir</Button>
+                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Eye" OnClick="() => NavigateToDetail(briefing.Id)">Abrir</Button>
                 @if (CanEdit(briefing.Status))
                 {
-                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" OnClick="() => NavigateToEdit(briefing.Id)">Editar</Button>
-                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Class="text-negative!" OnClick="() => RequestCancel(briefing)">Cancelar</Button>
+                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Pencil" OnClick="() => NavigateToEdit(briefing.Id)">Editar</Button>
+                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Class="text-error-ink!" Icon="IconName.Ban" OnClick="() => RequestCancel(briefing)">Cancelar</Button>
                 }
             </RowActions>
         </BriefingListTable>
@@ -73,7 +73,7 @@
         Description="@($"O briefing \"{_cancelTarget?.Title}\" será cancelado e não poderá ser reaberto.")">
     <Footer>
         <Button Variant="ButtonVariant.Secondary" OnClick="DismissCancel" Disabled="_isCancelling">Voltar</Button>
-        <Button Variant="ButtonVariant.Destructive" OnClick="ConfirmCancelAsync" Loading="_isCancelling">
+        <Button Variant="ButtonVariant.Destructive" Icon="IconName.Ban" OnClick="ConfirmCancelAsync" Loading="_isCancelling">
             @(_isCancelling ? "Cancelando..." : "Confirmar cancelamento")
         </Button>
     </Footer>
