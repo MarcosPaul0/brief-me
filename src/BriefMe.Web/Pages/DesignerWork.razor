@@ -1,0 +1,111 @@
+@page "/briefings/meu-trabalho"
+@attribute [Authorize(Roles = nameof(UserRole.Designer))]
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Web.Contracts.Common
+@using Microsoft.AspNetCore.Authorization
+@inject IBriefingsApiClient BriefingsApi
+@inject AuthSessionStore SessionStore
+@inject NavigationManager NavigationManager
+
+<PageTitle>Meu trabalho</PageTitle>
+
+<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
+    <div class="mx-auto max-w-[1100px]">
+        <div>
+            <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">Meu trabalho</h1>
+            <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
+                Briefings que você assumiu, pela data de entrega desejada.
+            </p>
+        </div>
+
+        <form @onsubmit="ApplyFilterAsync" @onsubmit:preventDefault="true"
+              class="mt-[30px] flex flex-wrap items-end gap-[12px]">
+            <div class="flex flex-col gap-1">
+                <label for="status" class="text-[13px] font-medium text-[#999999]">Status</label>
+                <select id="status" @bind="_statusFilter"
+                        class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none">
+                    <option value="">Todos</option>
+                    @foreach (var status in StatusOptions)
+                    {
+                        <option value="@status.ToString()">@BriefingLabels.Status(status)</option>
+                    }
+                </select>
+            </div>
+
+            <button type="submit"
+                    class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-white transition hover:bg-[#262626]">
+                Aplicar
+            </button>
+        </form>
+
+        <div class="mt-[20px]">
+            <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowRequester="true"
+                               EmptyTitle="Nenhum briefing por aqui" EmptyHint="Assuma um briefing na fila para começar."
+                               OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
+                <RowActions Context="briefing">
+                    <button type="button" @onclick="() => NavigateToDetail(briefing.Id)"
+                            class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
+                        Abrir
+                    </button>
+                </RowActions>
+            </BriefingListTable>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const int PageSize = 20;
+
+    // The states a claimed briefing can be in.
+    private static readonly BriefingStatus[] StatusOptions =
+        [BriefingStatus.InProgress, BriefingStatus.Delivered, BriefingStatus.Completed];
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private PagedResponse<BriefingListItemDto>? _page;
+    private int _currentPage = 1;
+    private string _statusFilter = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+        await LoadAsync();
+    }
+
+    private async Task ApplyFilterAsync()
+    {
+        _currentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _currentPage = page;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        var status = Enum.TryParse<BriefingStatus>(_statusFilter, out var parsed) ? parsed : (BriefingStatus?)null;
+        var result = await BriefingsApi.GetAssignedAsync(_currentPage, PageSize, status);
+        if (result.IsSuccess)
+        {
+            _page = result.Value;
+        }
+        else
+        {
+            _page = null;
+            _errorMessage = result.Error;
+        }
+
+        _isLoading = false;
+    }
+
+    private void NavigateToDetail(Guid briefingId) => NavigationManager.NavigateTo($"/briefings/{briefingId}/detalhes");
+}

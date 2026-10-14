@@ -1,0 +1,115 @@
+@* The open queue designers claim from. Route note: /briefings/fila, never /briefings/queue — that path is
+   BriefingsController's GET and the two would collide (AmbiguousMatchException). *@
+@page "/briefings/fila"
+@attribute [Authorize(Roles = nameof(UserRole.Designer))]
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Web.Contracts.Common
+@using Microsoft.AspNetCore.Authorization
+@inject IBriefingsApiClient BriefingsApi
+@inject AuthSessionStore SessionStore
+@inject NavigationManager NavigationManager
+
+<PageTitle>Fila de briefings</PageTitle>
+
+<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
+    <div class="mx-auto max-w-[1100px]">
+        <div>
+            <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">Fila de briefings</h1>
+            <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
+                Briefings enviados que ainda não têm designer, do mais antigo ao mais recente. Ao assumir um, ele passa a ser seu.
+            </p>
+        </div>
+
+        @if (_actionError is not null)
+        {
+            <div role="alert" class="mt-[20px] rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
+                @_actionError
+            </div>
+        }
+
+        <div class="mt-[30px]">
+            <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowRequester="true"
+                               EmptyTitle="A fila está vazia" EmptyHint="Novos briefings aparecem aqui assim que forem enviados."
+                               OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
+                <RowActions Context="briefing">
+                    <button type="button" @onclick="() => NavigateToDetail(briefing.Id)"
+                            class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
+                        Ver
+                    </button>
+                    <button type="button" @onclick="() => ClaimAsync(briefing.Id)" disabled="@(_claimingId is not null)"
+                            class="rounded-[100px] bg-white px-[12px] py-[6px] text-[13px] font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
+                        @(_claimingId == briefing.Id ? "Assumindo..." : "Assumir")
+                    </button>
+                </RowActions>
+            </BriefingListTable>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const int PageSize = 20;
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string? _actionError;
+    private PagedResponse<BriefingListItemDto>? _page;
+    private int _currentPage = 1;
+    private Guid? _claimingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No token before the interactive restore — same guard as the other list screens.
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        var result = await BriefingsApi.GetQueueAsync(_currentPage, PageSize);
+        if (result.IsSuccess)
+        {
+            _page = result.Value;
+        }
+        else
+        {
+            _page = null;
+            _errorMessage = result.Error;
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _currentPage = page;
+        await LoadAsync();
+    }
+
+    private async Task ClaimAsync(Guid briefingId)
+    {
+        _actionError = null;
+        _claimingId = briefingId;
+
+        var result = await BriefingsApi.ClaimBriefingAsync(briefingId);
+
+        _claimingId = null;
+
+        if (result.IsSuccess)
+        {
+            NavigateToDetail(briefingId);
+            return;
+        }
+
+        // Most often someone else claimed it first: show why and refresh so the row disappears.
+        _actionError = result.Error;
+        await LoadAsync();
+    }
+
+    private void NavigateToDetail(Guid briefingId) => NavigationManager.NavigateTo($"/briefings/{briefingId}/detalhes");
+}

@@ -1,87 +1,74 @@
+using System.Globalization;
+using System.Net.Http.Json;
 using BriefMe.Application.Common.Dtos;
-using BriefMe.Application.UseCases.Briefings;
-using BriefMe.Application.UseCases.Categories;
 using BriefMe.Domain.Common;
+using BriefMe.Domain.Enums;
 using BriefMe.Web.Contracts.Briefings;
 using BriefMe.Web.Contracts.Common;
 using BriefMe.Web.Http;
 using Microsoft.AspNetCore.WebUtilities;
-using System.Globalization;
-using System.Net.Http.Json;
-using System.Text.Json;
 
 namespace BriefMe.Web.ApiClients;
 
 /// <summary>
-/// Typed client for the briefing create/edit form (BRF-013). Sends through <see cref="AuthenticatedApiClient"/>
-/// (the "Api" pipeline: bearer + refresh-on-401) and maps non-success responses via
-/// <see cref="ApiProblemMapper"/>, so screens surface backend failures uniformly.
+/// Sends through <see cref="AuthenticatedApiClient"/> (bearer + refresh-on-401) and maps non-success
+/// responses via <see cref="ApiProblemMapper"/>, so every screen surfaces backend failures the same way.
 /// </summary>
-public sealed class BriefingsApiClient : IBriefingsApiClient
+public sealed class BriefingsApiClient(AuthenticatedApiClient api) : IBriefingsApiClient
 {
     private const string LoadBriefingFailureMessage = "Não foi possível carregar o briefing. Tente novamente.";
     private const string LoadBriefingsFailureMessage = "Não foi possível carregar os briefings. Tente novamente.";
-    private const string CancelBriefingFailureMessage = "Não foi possível cancelar o briefing. Tente novamente.";
     private const string SaveBriefingFailureMessage = "Não foi possível salvar o briefing. Tente novamente.";
-    private const string SubmitBriefingFailureMessage = "Não foi possível enviar o briefing para aprovação. Tente novamente.";
+    private const string SubmitBriefingFailureMessage = "Não foi possível enviar o briefing. Tente novamente.";
+    private const string CancelBriefingFailureMessage = "Não foi possível cancelar o briefing. Tente novamente.";
+    private const string AcceptFailureMessage = "Não foi possível aceitar a entrega. Tente novamente.";
+    private const string RequestChangesFailureMessage = "Não foi possível solicitar ajustes. Tente novamente.";
+    private const string ClaimFailureMessage = "Não foi possível assumir o briefing. Tente novamente.";
+    private const string DeliverFailureMessage = "Não foi possível entregar o briefing. Tente novamente.";
 
-    private static readonly JsonSerializerOptions ResponseJsonOptions = ApiProblemMapper.JsonOptions;
+    public Task<Result<BriefingDetailDto>> GetBriefingAsync(Guid id, CancellationToken cancellationToken = default) =>
+        api.GetResultAsync<BriefingDetailDto, BriefingDetailDto>($"briefings/{id}", LoadBriefingFailureMessage, cancellationToken);
 
-    private readonly AuthenticatedApiClient _api;
-
-    public BriefingsApiClient(AuthenticatedApiClient api) => _api = api;
-
-    public async Task<Result<BriefingDetailDto>> GetBriefingAsync(Guid id, CancellationToken cancellationToken = default)
+    public Task<Result<PagedResponse<BriefingListItemDto>>> GetBriefingsAsync(BriefingListQuery query, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            using var response = await _api.GetAsync($"briefings/{id}", cancellationToken);
+        var parameters = Paging(query.Page, query.PageSize);
 
-            if (!response.IsSuccessStatusCode)
-                return await ApiProblemMapper.MapFailureAsync<BriefingDetailDto>(response, LoadBriefingFailureMessage, cancellationToken: cancellationToken);
+        if (query.Status is { } status)
+            parameters["status"] = status.ToString();
 
-            var briefing = await response.Content.ReadFromJsonAsync<BriefingDetailDto>(ResponseJsonOptions, cancellationToken);
-            return briefing is null
-                ? Result.Failure<BriefingDetailDto>(LoadBriefingFailureMessage)
-                : Result.Success(briefing);
-        }
-        catch (HttpRequestException)
-        {
-            return Result.Failure<BriefingDetailDto>(LoadBriefingFailureMessage);
-        }
+        if (query.CategoryId is { } categoryId)
+            parameters["categoryId"] = categoryId.ToString();
+
+        return GetPageAsync(QueryHelpers.AddQueryString("briefings", parameters), cancellationToken);
     }
 
-    public async Task<Result<PagedResponse<BriefingDto>>> GetBriefingsAsync(BriefingListQuery query, CancellationToken cancellationToken = default)
+    public Task<Result<PagedResponse<BriefingListItemDto>>> GetQueueAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+        GetPageAsync(QueryHelpers.AddQueryString("briefings/queue", Paging(page, pageSize)), cancellationToken);
+
+    public Task<Result<PagedResponse<BriefingListItemDto>>> GetAssignedAsync(
+        int page,
+        int pageSize,
+        BriefingStatus? status = null,
+        CancellationToken cancellationToken = default)
     {
-        try
-        {
-            using var response = await _api.GetAsync(BuildBriefingsRequestUri(query), cancellationToken);
+        var parameters = Paging(page, pageSize);
 
-            if (!response.IsSuccessStatusCode)
-                return await ApiProblemMapper.MapFailureAsync<PagedResponse<BriefingDto>>(response, LoadBriefingsFailureMessage, cancellationToken: cancellationToken);
+        if (status is { } value)
+            parameters["status"] = value.ToString();
 
-            var page = await response.Content.ReadFromJsonAsync<PagedResponse<BriefingDto>>(ResponseJsonOptions, cancellationToken);
-
-            return page is null
-                ? Result.Failure<PagedResponse<BriefingDto>>(LoadBriefingsFailureMessage)
-                : Result.Success(page);
-        }
-        catch (HttpRequestException)
-        {
-            return Result.Failure<PagedResponse<BriefingDto>>(LoadBriefingsFailureMessage);
-        }
+        return GetPageAsync(QueryHelpers.AddQueryString("briefings/assigned", parameters), cancellationToken);
     }
 
     public async Task<IReadOnlyList<CategoryListItemDto>> GetCategoriesAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            using var response = await _api.GetAsync("categories/active", cancellationToken);
+            using var response = await api.GetAsync("categories/active", cancellationToken);
 
             if (!response.IsSuccessStatusCode)
                 return [];
 
-            var categories = await response.Content.ReadFromJsonAsync<List<CategoryListItemDto>>(ResponseJsonOptions, cancellationToken);
+            var categories = await response.Content.ReadFromJsonAsync<List<CategoryListItemDto>>(ApiProblemMapper.JsonOptions, cancellationToken);
             return categories ?? [];
         }
         catch (HttpRequestException)
@@ -90,83 +77,48 @@ public sealed class BriefingsApiClient : IBriefingsApiClient
         }
     }
 
-    public async Task<Result<BriefingDto>> CreateBriefingAsync(CreateBriefingRequest request, CancellationToken cancellationToken = default)
+    public Task<Result<BriefingDto>> CreateBriefingAsync(CreateBriefingRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync(client => client.PostAsJsonAsync("briefings", request, ApiProblemMapper.JsonOptions, cancellationToken), SaveBriefingFailureMessage, cancellationToken);
+
+    public Task<Result<BriefingDto>> UpdateBriefingAsync(Guid id, UpdateBriefingRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync(client => client.PutAsJsonAsync($"briefings/{id}", request, ApiProblemMapper.JsonOptions, cancellationToken), SaveBriefingFailureMessage, cancellationToken);
+
+    public Task<Result<BriefingDto>> SubmitBriefingAsync(Guid id, CancellationToken cancellationToken = default) =>
+        SendAsync(client => client.PostAsync($"briefings/{id}/submit", cancellationToken), SubmitBriefingFailureMessage, cancellationToken);
+
+    public Task<Result<BriefingDto>> CancelBriefingAsync(Guid id, CancellationToken cancellationToken = default) =>
+        SendAsync(client => client.PostAsync($"briefings/{id}/cancel", cancellationToken), CancelBriefingFailureMessage, cancellationToken);
+
+    public Task<Result<BriefingDto>> AcceptDeliveryAsync(Guid id, CancellationToken cancellationToken = default) =>
+        SendAsync(client => client.PostAsync($"briefings/{id}/accept", cancellationToken), AcceptFailureMessage, cancellationToken);
+
+    public Task<Result<BriefingDto>> RequestChangesAsync(Guid id, string reason, CancellationToken cancellationToken = default) =>
+        SendAsync(
+            client => client.PostAsJsonAsync($"briefings/{id}/request-changes", new RequestBriefingChangesRequest(reason), ApiProblemMapper.JsonOptions, cancellationToken),
+            RequestChangesFailureMessage,
+            cancellationToken);
+
+    public Task<Result<BriefingDto>> ClaimBriefingAsync(Guid id, CancellationToken cancellationToken = default) =>
+        SendAsync(client => client.PostAsync($"briefings/{id}/claim", cancellationToken), ClaimFailureMessage, cancellationToken);
+
+    public Task<Result<BriefingDto>> DeliverBriefingAsync(Guid id, string deliveryNote, CancellationToken cancellationToken = default) =>
+        SendAsync(
+            client => client.PostAsJsonAsync($"briefings/{id}/deliver", new DeliverBriefingRequest(deliveryNote), ApiProblemMapper.JsonOptions, cancellationToken),
+            DeliverFailureMessage,
+            cancellationToken);
+
+    private Task<Result<PagedResponse<BriefingListItemDto>>> GetPageAsync(string requestUri, CancellationToken cancellationToken) =>
+        api.GetResultAsync<PagedResponse<BriefingListItemDto>, PagedResponse<BriefingListItemDto>>(requestUri, LoadBriefingsFailureMessage, cancellationToken);
+
+    private Task<Result<BriefingDto>> SendAsync(
+        Func<AuthenticatedApiClient, Task<HttpResponseMessage>> send,
+        string fallbackMessage,
+        CancellationToken cancellationToken) =>
+        api.SendForResultAsync<BriefingDto>(send, fallbackMessage, cancellationToken);
+
+    private static Dictionary<string, string?> Paging(int page, int pageSize) => new()
     {
-        try
-        {
-            using var response = await _api.PostAsJsonAsync("briefings", request, ResponseJsonOptions, cancellationToken);
-            return await ReadBriefingOrFailureAsync(response, SaveBriefingFailureMessage, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            return Result.Failure<BriefingDto>(SaveBriefingFailureMessage);
-        }
-    }
-
-    public async Task<Result<BriefingDto>> UpdateBriefingAsync(Guid id, UpdateBriefingRequest request, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            using var response = await _api.PutAsJsonAsync($"briefings/{id}", request, ResponseJsonOptions, cancellationToken);
-            return await ReadBriefingOrFailureAsync(response, SaveBriefingFailureMessage, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            return Result.Failure<BriefingDto>(SaveBriefingFailureMessage);
-        }
-    }
-
-    public async Task<Result<BriefingDto>> SubmitBriefingAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            using var response = await _api.PostAsync($"briefings/{id}/submit", cancellationToken);
-            return await ReadBriefingOrFailureAsync(response, SubmitBriefingFailureMessage, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            return Result.Failure<BriefingDto>(SubmitBriefingFailureMessage);
-        }
-    }
-
-    public async Task<Result<BriefingDto>> CancelBriefingAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            using var response = await _api.PostAsync($"briefings/{id}/cancel", cancellationToken);
-            return await ReadBriefingOrFailureAsync(response, CancelBriefingFailureMessage, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            return Result.Failure<BriefingDto>(CancelBriefingFailureMessage);
-        }
-    }
-
-    private static string BuildBriefingsRequestUri(BriefingListQuery query)
-    {
-        var parameters = new Dictionary<string, string?>
-        {
-            ["page"] = query.Page.ToString(CultureInfo.InvariantCulture),
-            ["pageSize"] = query.PageSize.ToString(CultureInfo.InvariantCulture)
-        };
-
-        if (query.Status is { } status)
-            parameters["status"] = status.ToString();
-
-        if (query.CategoryId is { } categoryId)
-            parameters["categoryId"] = categoryId.ToString();
-
-        return QueryHelpers.AddQueryString("briefings", parameters);
-    }
-
-    private static async Task<Result<BriefingDto>> ReadBriefingOrFailureAsync(HttpResponseMessage response, string fallbackMessage, CancellationToken cancellationToken)
-    {
-        if (!response.IsSuccessStatusCode)
-            return await ApiProblemMapper.MapFailureAsync<BriefingDto>(response, fallbackMessage, cancellationToken: cancellationToken);
-
-        var briefing = await response.Content.ReadFromJsonAsync<BriefingDto>(ResponseJsonOptions, cancellationToken);
-        return briefing is null
-            ? Result.Failure<BriefingDto>(fallbackMessage)
-            : Result.Success(briefing);
-    }
+        ["page"] = page.ToString(CultureInfo.InvariantCulture),
+        ["pageSize"] = pageSize.ToString(CultureInfo.InvariantCulture)
+    };
 }

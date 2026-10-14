@@ -20,7 +20,7 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
-  <Target Name="TailwindBuild" BeforeTargets="ResolveStaticWebAssetsConfiguration" Inputs="Styles/app.tailwind.css;Components/**/*.razor" Outputs="wwwroot/app.css">
+  <Target Name="TailwindBuild" BeforeTargets="ResolveStaticWebAssetsConfiguration" Inputs="Styles/app.tailwind.css;Components/**/*.razor;Pages/**/*.razor" Outputs="wwwroot/app.css">
     <Exec Command="./tailwindcss -i ./Styles/app.tailwind.css -o ./wwwroot/app.css" />
     <ItemGroup>
       <Content Include="wwwroot/app.css" Condition="!@(Content-&gt;AnyHaveMetadataValue('Identity', 'wwwroot/app.css'))" />

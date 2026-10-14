@@ -599,6 +599,9 @@
   .max-w-\[560px\] {
     max-width: 560px;
   }
+  .max-w-\[760px\] {
+    max-width: 760px;
+  }
   .max-w-\[900px\] {
     max-width: 900px;
   }
@@ -688,6 +691,9 @@
   }
   .items-end {
     align-items: flex-end;
+  }
+  .items-start {
+    align-items: flex-start;
   }
   .justify-between {
     justify-content: space-between;
@@ -833,6 +839,9 @@
   .border-\[\#ef4444\]\/30 {
     border-color: color-mix(in oklab, #ef4444 30%, transparent);
   }
+  .border-\[\#f59e0b\]\/30 {
+    border-color: color-mix(in oklab, #f59e0b 30%, transparent);
+  }
   .border-black {
     border-color: var(--color-black);
   }
@@ -883,6 +892,9 @@
   }
   .bg-\[\#ef4444\]\/10 {
     background-color: color-mix(in oklab, #ef4444 10%, transparent);
+  }
+  .bg-\[\#f59e0b\]\/10 {
+    background-color: color-mix(in oklab, #f59e0b 10%, transparent);
   }
   .bg-black {
     background-color: var(--color-black);
@@ -950,6 +962,9 @@
   .px-\[10px\] {
     padding-inline: 10px;
   }
+  .px-\[12px\] {
+    padding-inline: 12px;
+  }
   .px-\[14px\] {
     padding-inline: 14px;
   }
@@ -988,6 +1003,9 @@
   }
   .py-\[4px\] {
     padding-block: 4px;
+  }
+  .py-\[6px\] {
+    padding-block: 6px;
   }
   .py-\[8px\] {
     padding-block: 8px;
@@ -1182,6 +1200,12 @@
   .text-wrap {
     text-wrap: wrap;
   }
+  .break-all {
+    word-break: break-all;
+  }
+  .whitespace-pre-line {
+    white-space: pre-line;
+  }
   .text-\[\#22c55e\] {
     color: #22c55e;
   }
@@ -1193,6 +1217,9 @@
   }
   .text-\[\#ef4444\] {
     color: #ef4444;
+  }
+  .text-\[\#f59e0b\] {
+    color: #f59e0b;
   }
   .text-black {
     color: var(--color-black);
@@ -1305,6 +1332,13 @@
       }
     }
   }
+  .hover\:text-\[\#ef4444\] {
+    &:hover {
+      @media (hover: hover) {
+        color: #ef4444;
+      }
+    }
+  }
   .hover\:text-white {
     &:hover {
       @media (hover: hover) {
@@ -1348,16 +1382,6 @@
       cursor: not-allowed;
     }
   }
-  .disabled\:text-\[\#999999\] {
-    &:disabled {
-      color: #999999;
-    }
-  }
-  .disabled\:no-underline {
-    &:disabled {
-      text-decoration-line: none;
-    }
-  }
   .disabled\:opacity-40 {
     &:disabled {
       opacity: 40%;
@@ -1373,13 +1397,9 @@
       opacity: 60%;
     }
   }
-  .disabled\:hover\:no-underline {
-    &:disabled {
-      &:hover {
-        @media (hover: hover) {
-          text-decoration-line: none;
-        }
-      }
+  .sm\:col-span-2 {
+    @media (width >= 40rem) {
+      grid-column: span 2 / span 2;
     }
   }
   .sm\:block {

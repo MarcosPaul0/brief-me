@@ -297,4 +297,108 @@ public class BriefingsApiClientTests
         result.Type.Should().Be(ErrorType.Conflict);
         handler.Requests[0].Method.Should().Be(HttpMethod.Put);
     }
+
+    [Fact]
+    public async Task GetQueueAsync_Always_GetsTheQueueWithPaging()
+    {
+        // Arrange
+        var (client, handler) = CreateSut(_ => PagedBriefingsResponse());
+
+        // Act
+        var result = await client.GetQueueAsync(3, 10);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        handler.Requests[0].RequestUri!.PathAndQuery.Should().Be("/briefings/queue?page=3&pageSize=10");
+    }
+
+    [Fact]
+    public async Task GetAssignedAsync_WhenStatusGiven_SendsIt()
+    {
+        // Arrange
+        var (client, handler) = CreateSut(_ => PagedBriefingsResponse());
+
+        // Act
+        await client.GetAssignedAsync(1, 20, BriefingStatus.Delivered);
+
+        // Assert
+        handler.Requests[0].RequestUri!.PathAndQuery.Should().Be("/briefings/assigned?page=1&pageSize=20&status=Delivered");
+    }
+
+    [Fact]
+    public async Task ClaimBriefingAsync_WhenCalled_PostsToClaimRoute()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var (client, handler) = CreateSut(_ => BriefingResponse(id, BriefingStatus.InProgress));
+
+        // Act
+        var result = await client.ClaimBriefingAsync(id);
+
+        // Assert
+        result.Value.Status.Should().Be(BriefingStatus.InProgress);
+        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be($"/briefings/{id}/claim");
+    }
+
+    [Fact]
+    public async Task AcceptDeliveryAsync_WhenCalled_PostsToAcceptRoute()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var (client, handler) = CreateSut(_ => BriefingResponse(id, BriefingStatus.Completed));
+
+        // Act
+        var result = await client.AcceptDeliveryAsync(id);
+
+        // Assert
+        result.Value.Status.Should().Be(BriefingStatus.Completed);
+        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be($"/briefings/{id}/accept");
+    }
+
+    [Fact]
+    public async Task DeliverBriefingAsync_WhenCalled_PostsTheNote()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var (client, handler) = CreateSut(_ => BriefingResponse(id, BriefingStatus.Delivered));
+
+        // Act
+        await client.DeliverBriefingAsync(id, "https://files.example/v1");
+
+        // Assert
+        var body = await handler.Requests[0].Content!.ReadFromJsonAsync<DeliverBriefingRequest>(WireJsonOptions);
+        body!.DeliveryNote.Should().Be("https://files.example/v1");
+    }
+
+    [Fact]
+    public async Task RequestChangesAsync_WhenCalled_PostsTheReason()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var (client, handler) = CreateSut(_ => BriefingResponse(id, BriefingStatus.InProgress));
+
+        // Act
+        await client.RequestChangesAsync(id, "Use the new logo");
+
+        // Assert
+        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be($"/briefings/{id}/request-changes");
+        var body = await handler.Requests[0].Content!.ReadFromJsonAsync<RequestBriefingChangesRequest>(WireJsonOptions);
+        body!.Reason.Should().Be("Use the new logo");
+    }
+
+    [Fact]
+    public async Task ClaimBriefingAsync_WhenAnotherDesignerWon_MapsToConflictFailure()
+    {
+        // Arrange
+        var (client, _) = CreateSut(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = JsonContent.Create(new { title = "Falha", status = 409, detail = "Este briefing já foi assumido." }, options: WireJsonOptions)
+        });
+
+        // Act
+        var result = await client.ClaimBriefingAsync(Guid.NewGuid());
+
+        // Assert
+        result.Type.Should().Be(ErrorType.Conflict);
+    }
 }

@@ -12,6 +12,11 @@
             <NavLink class="nav-link" href="briefings/novo">Novo briefing</NavLink>
         </AuthorizeView>
 
+        <AuthorizeView Roles="@nameof(UserRole.Designer)">
+            <NavLink class="nav-link" href="briefings/fila">Fila de briefings</NavLink>
+            <NavLink class="nav-link" href="briefings/meu-trabalho">Meu trabalho</NavLink>
+        </AuthorizeView>
+
         <AuthorizeView Roles="@nameof(UserRole.Admin)">
             <NavLink class="nav-link" href="usuarios">Usuários</NavLink>
             <NavLink class="nav-link" href="categorias">Categorias</NavLink>

@@ -1,11 +1,9 @@
-@* BRF-014 (RF008) — the requester's own briefings.
+@* The requester's own briefings.
    Route note: the Blazor screen lives at /briefings/meus because @page "/briefings" would collide with
    BriefingsController's [Route("briefings")] GET (AmbiguousMatchException — the USR-042 bug). *@
 @page "/briefings/meus"
 @attribute [Authorize(Roles = nameof(UserRole.Requester))]
 @using BriefMe.Application.Common.Dtos
-@using BriefMe.Application.UseCases.Briefings
-@using BriefMe.Application.UseCases.Categories
 @using BriefMe.Domain.Enums
 @using BriefMe.Web.Contracts.Common
 @using Microsoft.AspNetCore.Authorization
@@ -40,7 +38,7 @@
                     <option value="">Todos</option>
                     @foreach (var status in StatusOptions)
                     {
-                        <option value="@status.ToString()">@StatusLabel(status)</option>
+                        <option value="@status.ToString()">@BriefingLabels.Status(status)</option>
                     }
                 </select>
             </div>
@@ -73,100 +71,28 @@
             </div>
         }
 
-        <div class="mt-[20px] overflow-hidden rounded-[20px] border border-[#262626] bg-[#141414]">
-            @if (_isLoading)
-            {
-                <div class="flex items-center justify-center gap-3 py-24 text-[15px] text-[#999999]">
-                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-[#262626] border-t-white"></span>
-                    <span>Carregando briefings...</span>
-                </div>
-            }
-            else if (_errorMessage is not null)
-            {
-                <div class="flex flex-col items-center justify-center gap-3 py-24 text-center">
-                    <p class="text-[15px] text-[#ef4444]">@_errorMessage</p>
-                    <button type="button" @onclick="ReloadAsync"
-                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
-                        Tentar novamente
+        <div class="mt-[20px]">
+            <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowDesigner="true"
+                               EmptyHint="Ajuste os filtros ou abra um novo briefing."
+                               OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
+                <RowActions Context="briefing">
+                    <button type="button" @onclick="() => NavigateToDetail(briefing.Id)"
+                            class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
+                        Abrir
                     </button>
-                </div>
-            }
-            else if (_page is null || _page.Items.Count == 0)
-            {
-                <div class="flex flex-col items-center justify-center gap-1 py-24 text-center">
-                    <p class="text-[15px] text-white">Nenhum briefing encontrado</p>
-                    <p class="text-[14px] text-[#999999]">Ajuste os filtros ou abra um novo briefing.</p>
-                </div>
-            }
-            else
-            {
-                <div class="overflow-x-auto">
-                    <table class="w-full min-w-[860px] border-collapse text-left">
-                        <thead>
-                            <tr class="border-b border-[#262626] text-[13px] font-medium text-[#999999]">
-                                <th class="px-[20px] py-[14px]">Título</th>
-                                <th class="px-[20px] py-[14px]">Status</th>
-                                <th class="px-[20px] py-[14px]">Prioridade</th>
-                                <th class="px-[20px] py-[14px]">Categoria</th>
-                                <th class="px-[20px] py-[14px]">Entrega desejada</th>
-                                <th class="px-[20px] py-[14px] text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var briefing in _page.Items)
-                            {
-                                <tr class="border-b border-[#1a1a1a] text-[15px] last:border-b-0">
-                                    <td class="px-[20px] py-[14px] text-white">@briefing.Title</td>
-                                    <td class="px-[20px] py-[14px]">
-                                        <span class="inline-flex items-center rounded-[100px] px-[10px] py-[4px] text-[13px] font-medium @StatusBadgeClass(briefing.Status)">
-                                            @StatusLabel(briefing.Status)
-                                        </span>
-                                    </td>
-                                    <td class="px-[20px] py-[14px] text-[#999999]">@PriorityLabel(briefing.Priority)</td>
-                                    <td class="px-[20px] py-[14px] text-[#999999]">@CategoryName(briefing.CategoryId)</td>
-                                    <td class="px-[20px] py-[14px] text-[#999999]">
-                                        @(briefing.DesiredDeliveryDate?.ToString("dd/MM/yyyy") ?? "—")
-                                    </td>
-                                    <td class="px-[20px] py-[14px] text-right">
-                                        <div class="flex items-center justify-end gap-3">
-                                            @* Tracking (BRF-039) is a read: valid in every status, including the
-                                               empty reading of a draft and the history of a cancelled briefing. *@
-                                            <button type="button" @onclick="() => NavigateToTracking(briefing.Id)"
-                                                    class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
-                                                Acompanhar
-                                            </button>
-                                            <button type="button" @onclick="() => NavigateToEdit(briefing.Id)" disabled="@(!CanEdit(briefing.Status))"
-                                                    class="text-[14px] font-medium text-[#0099ff] transition hover:underline disabled:cursor-not-allowed disabled:text-[#999999] disabled:no-underline disabled:hover:no-underline">
-                                                Editar
-                                            </button>
-                                            <button type="button" @onclick="() => RequestCancel(briefing)" disabled="@(!CanCancel(briefing.Status))"
-                                                    class="text-[14px] font-medium text-[#0099ff] transition hover:underline disabled:cursor-not-allowed disabled:text-[#999999] disabled:no-underline disabled:hover:no-underline">
-                                                Cancelar
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#262626] px-[20px] py-[14px]">
-                    <p class="text-[14px] text-[#999999]">
-                        Página @_page.Page de @Math.Max(_page.TotalPages, 1) • @_page.TotalCount briefing(s)
-                    </p>
-                    <div class="flex items-center gap-2">
-                        <button type="button" @onclick="PreviousPageAsync" disabled="@(!CanGoPrevious)"
-                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[8px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-40">
-                            Anterior
+                    @if (CanEdit(briefing.Status))
+                    {
+                        <button type="button" @onclick="() => NavigateToEdit(briefing.Id)"
+                                class="text-[14px] font-medium text-[#0099ff] transition hover:underline">
+                            Editar
                         </button>
-                        <button type="button" @onclick="NextPageAsync" disabled="@(!CanGoNext)"
-                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[8px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-40">
-                            Próxima
+                        <button type="button" @onclick="() => RequestCancel(briefing)"
+                                class="text-[14px] font-medium text-[#999999] transition hover:text-[#ef4444]">
+                            Cancelar
                         </button>
-                    </div>
-                </div>
-            }
+                    }
+                </RowActions>
+            </BriefingListTable>
         </div>
     </div>
 </div>
@@ -210,14 +136,14 @@
     private bool _isLoading = true;
     private string? _errorMessage;
     private string? _actionError;
-    private PagedResponse<BriefingDto>? _page;
+    private PagedResponse<BriefingListItemDto>? _page;
     private IReadOnlyList<CategoryListItemDto> _categories = [];
 
     private int _currentPage = 1;
     private string _statusFilter = string.Empty;
     private string _categoryFilter = string.Empty;
 
-    private BriefingDto? _cancelTarget;
+    private BriefingListItemDto? _cancelTarget;
     private bool _isCancelling;
 
     protected override async Task OnInitializedAsync()
@@ -229,7 +155,7 @@
 
         await SessionStore.RestorationCompleted;
 
-        // Best-effort: an empty catalog just hides the category filter and shows raw ids in the column.
+        // Best-effort: an empty catalog just hides the category filter.
         _categories = await BriefingsApi.GetCategoriesAsync();
 
         await LoadAsync();
@@ -241,8 +167,6 @@
         _currentPage = 1;
         await LoadAsync();
     }
-
-    private Task ReloadAsync() => LoadAsync();
 
     private async Task LoadAsync()
     {
@@ -273,29 +197,13 @@
         StateHasChanged();
     }
 
-    private bool CanGoPrevious => _page is { Page: > 1 };
-
-    private bool CanGoNext => _page is not null && _page.Page < _page.TotalPages;
-
-    private async Task PreviousPageAsync()
+    private async Task GoToPageAsync(int page)
     {
-        if (!CanGoPrevious)
-            return;
-
-        _currentPage = _page!.Page - 1;
+        _currentPage = page;
         await LoadAsync();
     }
 
-    private async Task NextPageAsync()
-    {
-        if (!CanGoNext)
-            return;
-
-        _currentPage = _page!.Page + 1;
-        await LoadAsync();
-    }
-
-    private void RequestCancel(BriefingDto briefing)
+    private void RequestCancel(BriefingListItemDto briefing)
     {
         _actionError = null;
         _cancelTarget = briefing;
@@ -323,27 +231,16 @@
     private static bool CanEdit(BriefingStatus status) =>
         status is BriefingStatus.Draft or BriefingStatus.Submitted;
 
-    private static bool CanCancel(BriefingStatus status) => CanEdit(status);
-
-    private string CategoryName(Guid categoryId) =>
-        _categories.FirstOrDefault(c => c.Id == categoryId)?.Name ?? "—";
 
     private void NavigateToNew() => NavigationManager.NavigateTo("/briefings/novo");
 
     private void NavigateToEdit(Guid briefingId) => NavigationManager.NavigateTo($"/briefings/{briefingId}/editar");
 
-    private void NavigateToTracking(Guid briefingId) => NavigationManager.NavigateTo($"/briefings/{briefingId}/acompanhamento");
+    private void NavigateToDetail(Guid briefingId) => NavigationManager.NavigateTo($"/briefings/{briefingId}/detalhes");
 
     private static BriefingStatus? ParseStatus(string value) =>
         Enum.TryParse<BriefingStatus>(value, out var status) ? status : null;
 
     private static Guid? ParseCategoryId(string value) =>
         Guid.TryParse(value, out var categoryId) ? categoryId : null;
-
-    // Labels live in BriefingLabels so this screen and the approval panel (BRF-020) translate the enums once.
-    private static string StatusLabel(BriefingStatus status) => BriefingLabels.Status(status);
-
-    private static string StatusBadgeClass(BriefingStatus status) => BriefingLabels.StatusBadgeClass(status);
-
-    private static string PriorityLabel(Priority priority) => BriefingLabels.Priority(priority);
 }
