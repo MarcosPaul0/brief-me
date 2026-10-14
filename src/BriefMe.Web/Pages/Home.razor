@@ -1,22 +1,37 @@
+@* No screen of its own: "/" (the login default and the header wordmark) forwards each role to its main page. *@
 @page "/"
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
+@inject NavigationManager NavigationManager
 
-<PageTitle>Início</PageTitle>
+<PageTitle>BriefMe</PageTitle>
 
-<PageContainer>
-    <AuthorizeView>
-        <PageHeader Title="@Greeting(context.User)"
-                    Description="Módulo de Usuários e Acesso. Escolha uma área para começar." />
-
-        <HomeNavOptions />
-    </AuthorizeView>
-</PageContainer>
+@if (_hasNoRole)
+{
+    <AccessDenied />
+}
+else
+{
+    <LoadingState Text="Carregando..." />
+}
 
 @code {
-    private static string Greeting(System.Security.Claims.ClaimsPrincipal user)
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = default!;
+
+    private bool _hasNoRole;
+
+    protected override async Task OnInitializedAsync()
     {
-        var name = user.Identity?.Name;
-        return string.IsNullOrWhiteSpace(name) ? "Olá" : $"Olá, {name.Split(' ')[0]}";
+        var state = await AuthenticationState;
+        var landingPage = RoleLandingPage.For(state.User);
+
+        if (landingPage is null)
+        {
+            _hasNoRole = true;
+            return;
+        }
+
+        NavigationManager.NavigateTo(landingPage, replace: true);
     }
 }

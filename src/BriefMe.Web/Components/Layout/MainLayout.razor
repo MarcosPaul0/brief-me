@@ -1,9 +1,7 @@
 @inherits LayoutComponentBase
 
-<div class="flex min-h-screen bg-canvas">
-    <aside class="sticky top-0 hidden h-screen w-[250px] shrink-0 bg-chrome sm:block">
-        <NavMenu />
-    </aside>
+<div class="flex min-h-screen flex-col bg-canvas">
+    <AppHeader />
 
     <main class="min-w-0 flex-1">
         @Body

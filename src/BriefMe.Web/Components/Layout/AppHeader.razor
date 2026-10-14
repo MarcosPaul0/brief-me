@@ -1,0 +1,59 @@
+@*
+    Global bar (DESIGN-sap.md nav-bar): 60px, full-bleed, chrome grey. Wordmark on the left, the role's nav links
+    beside it, the signed-in user and "Sair" on the right. Below sm the links drop to a second row that scrolls
+    sideways inside itself rather than widening the page.
+*@
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<header class="sticky top-0 z-40 border-b border-band bg-chrome">
+    <div class="mx-auto flex h-[60px] max-w-[1100px] items-center gap-8 px-4 sm:px-8">
+        <a href="" class="text-subhead font-bold text-primary">BriefMe</a>
+
+        <nav class="hidden h-full items-stretch gap-1 sm:flex" aria-label="Navegação principal">
+            <NavLinks />
+        </nav>
+
+        <AuthorizeView>
+            <div class="ml-auto flex items-center gap-4">
+                <span class="hidden max-w-[200px] truncate text-link text-ink-nav md:inline">@context.User.Identity?.Name</span>
+                <Button Variant="ButtonVariant.Outline" Size="ButtonSize.Sm" OnClick="LogoutAsync" Loading="_isLoggingOut">
+                    @(_isLoggingOut ? "Saindo..." : "Sair")
+                </Button>
+            </div>
+        </AuthorizeView>
+    </div>
+
+    <nav class="flex h-11 items-stretch gap-1 overflow-x-auto border-t border-band px-4 sm:hidden" aria-label="Navegação principal">
+        <NavLinks />
+    </nav>
+</header>
+
+@code {
+    private bool _isLoggingOut;
+
+    private RenderFragment NavLinks => __builder =>
+    {
+        <AuthorizeView Roles="@nameof(UserRole.Requester)" Context="_">
+            <NavLink class="nav-link" href="briefings/meus">Meus briefings</NavLink>
+            <NavLink class="nav-link" href="briefings/novo">Novo briefing</NavLink>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="@nameof(UserRole.Designer)" Context="_">
+            <NavLink class="nav-link" href="briefings/meu-trabalho">Meu trabalho</NavLink>
+            <NavLink class="nav-link" href="briefings/fila">Fila de briefings</NavLink>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="@nameof(UserRole.Admin)" Context="_">
+            <NavLink class="nav-link" href="usuarios">Usuários</NavLink>
+            <NavLink class="nav-link" href="categorias">Categorias</NavLink>
+        </AuthorizeView>
+    };
+
+    private async Task LogoutAsync()
+    {
+        _isLoggingOut = true;
+        await AuthService.LogoutAsync();
+        NavigationManager.NavigateTo("/login", replace: true);
+    }
+}
