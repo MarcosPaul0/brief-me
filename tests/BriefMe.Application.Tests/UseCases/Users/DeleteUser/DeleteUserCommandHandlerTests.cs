@@ -1,6 +1,7 @@
 using BriefMe.Application.Abstractions;
 using BriefMe.Application.UseCases.Users.DeleteUser;
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
 using BriefMe.Domain.ValueObjects;
 using FluentAssertions;
@@ -26,7 +27,7 @@ public class DeleteUserCommandHandlerTests
     }
 
     private static User CreateExistingUser() =>
-        User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, "hash");
+        User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, "hash", UserRole.Requester);
 
     [Fact]
     public async Task Handle_WhenUserExists_MarksAsDeletedRevokesTokensAndCommits()

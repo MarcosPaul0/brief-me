@@ -1,7 +1,6 @@
 using BriefMe.Application.Abstractions.Messaging;
 using BriefMe.Application.UseCases.Categories.GetActiveCategories;
-using BriefMe.Domain.Constants;
-using BriefMe.Web.Authorization;
+using BriefMe.Domain.Enums;
 using BriefMe.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,7 +18,7 @@ namespace BriefMe.Web.Controllers;
 public sealed class CategoriesController(ISender sender) : ControllerBase
 {
     [HttpGet]
-    [HasPermission(Permissions.Briefings.Create)]
+    [Authorize(Roles = nameof(UserRole.Requester))]
     public async Task<IActionResult> GetActive(CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetActiveCategoriesQuery(), cancellationToken);

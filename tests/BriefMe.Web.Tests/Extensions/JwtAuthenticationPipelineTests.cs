@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Auth;
 using BriefMe.Web.Extensions;
@@ -28,11 +29,9 @@ public class JwtAuthenticationPipelineTests
         AccessTokenMinutes = accessTokenMinutes
     };
 
-    private static User CreateUser(string roleName)
+    private static User CreateUser(UserRole role)
     {
-        var user = User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, "hashed-password");
-        var role = Role.Create(roleName, null);
-        user.AssignRole(role.Id);
+        var user = User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, "hashed-password", role);
 
         return user;
     }
@@ -91,7 +90,7 @@ public class JwtAuthenticationPipelineTests
         using var host = await StartHostAsync(settings);
         var client = host.GetTestClient();
         var jwtService = new JwtService(Options.Create(settings));
-        var (token, _) = jwtService.GenerateAccessToken(CreateUser("Designer"));
+        var (token, _) = jwtService.GenerateAccessToken(CreateUser(UserRole.Designer));
         client.DefaultRequestHeaders.Authorization = new("Bearer", token[..^2] + "xx");
 
         // Act
@@ -111,7 +110,7 @@ public class JwtAuthenticationPipelineTests
         using var host = await StartHostAsync(settings);
         var client = host.GetTestClient();
         var jwtService = new JwtService(Options.Create(settings));
-        var (token, _) = jwtService.GenerateAccessToken(CreateUser("Designer"));
+        var (token, _) = jwtService.GenerateAccessToken(CreateUser(UserRole.Designer));
         client.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
         // Act
@@ -131,7 +130,7 @@ public class JwtAuthenticationPipelineTests
         using var host = await StartHostAsync(settings);
         var client = host.GetTestClient();
         var jwtService = new JwtService(Options.Create(settings));
-        var (token, _) = jwtService.GenerateAccessToken(CreateUser("Designer"));
+        var (token, _) = jwtService.GenerateAccessToken(CreateUser(UserRole.Designer));
         client.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
         // Act
@@ -149,7 +148,7 @@ public class JwtAuthenticationPipelineTests
         using var host = await StartHostAsync(settings, requiredRole: "Administrador");
         var client = host.GetTestClient();
         var jwtService = new JwtService(Options.Create(settings));
-        var (token, _) = jwtService.GenerateAccessToken(CreateUser("Designer"));
+        var (token, _) = jwtService.GenerateAccessToken(CreateUser(UserRole.Designer));
         client.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
         // Act

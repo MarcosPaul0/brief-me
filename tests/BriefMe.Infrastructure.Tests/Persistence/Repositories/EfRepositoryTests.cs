@@ -1,4 +1,6 @@
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
+using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Persistence;
 using BriefMe.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
@@ -22,16 +24,16 @@ public class EfRepositoryTests
     {
         // Arrange
         await using var context = CreateContext();
-        var repository = new EfRepository<Permission>(context);
-        var permission = Permission.Create("users.create", "Criar usuários", null, "Usuários");
-        await repository.AddAsync(permission);
+        var repository = new EfRepository<User>(context);
+        var user = User.Create("Ana Silva", Email.Create("ana@empresa.com").Value, "hash", UserRole.Requester);
+        await repository.AddAsync(user);
         await context.SaveChangesAsync();
 
         // Act
-        var result = await repository.GetByIdAsync(permission.Id);
+        var result = await repository.GetByIdAsync(user.Id);
 
         // Assert
-        result.Should().Be(permission);
+        result.Should().Be(user);
     }
 
     [Fact]
@@ -39,7 +41,7 @@ public class EfRepositoryTests
     {
         // Arrange
         await using var context = CreateContext();
-        var repository = new EfRepository<Permission>(context);
+        var repository = new EfRepository<User>(context);
 
         // Act
         var result = await repository.GetByIdAsync(Guid.NewGuid());
@@ -53,15 +55,15 @@ public class EfRepositoryTests
     {
         // Arrange
         await using var context = CreateContext();
-        var repository = new EfRepository<Permission>(context);
-        var permission = Permission.Create("users.create", "Criar usuários", null, "Usuários");
+        var repository = new EfRepository<User>(context);
+        var user = User.Create("Ana Silva", Email.Create("ana@empresa.com").Value, "hash", UserRole.Requester);
 
         // Act
-        await repository.AddAsync(permission);
+        await repository.AddAsync(user);
         await context.SaveChangesAsync();
 
         // Assert
-        (await context.Permissions.FindAsync(permission.Id)).Should().NotBeNull();
+        (await context.Users.FindAsync(user.Id)).Should().NotBeNull();
     }
 
     [Fact]
@@ -69,19 +71,19 @@ public class EfRepositoryTests
     {
         // Arrange
         await using var context = CreateContext();
-        var repository = new EfRepository<Role>(context);
-        var role = Role.Create("Designer", null);
-        await repository.AddAsync(role);
+        var repository = new EfRepository<User>(context);
+        var user = User.Create("Ana Silva", Email.Create("ana@empresa.com").Value, "hash", UserRole.Requester);
+        await repository.AddAsync(user);
         await context.SaveChangesAsync();
 
         // Act
-        role.Rename("Designer Sênior");
-        repository.Update(role);
+        user.ChangePassword("new-hash");
+        repository.Update(user);
         await context.SaveChangesAsync();
 
         // Assert
-        var persisted = await context.Roles.FindAsync(role.Id);
-        persisted!.Name.Should().Be("Designer Sênior");
+        var persisted = await context.Users.FindAsync(user.Id);
+        persisted!.PasswordHash.Should().Be("new-hash");
     }
 
     [Fact]
@@ -89,17 +91,17 @@ public class EfRepositoryTests
     {
         // Arrange
         await using var context = CreateContext();
-        var repository = new EfRepository<Permission>(context);
-        var permission = Permission.Create("users.create", "Criar usuários", null, "Usuários");
-        await repository.AddAsync(permission);
+        var repository = new EfRepository<User>(context);
+        var user = User.Create("Ana Silva", Email.Create("ana@empresa.com").Value, "hash", UserRole.Requester);
+        await repository.AddAsync(user);
         await context.SaveChangesAsync();
 
         // Act
-        repository.Remove(permission);
+        repository.Remove(user);
         await context.SaveChangesAsync();
 
         // Assert
-        (await context.Permissions.FindAsync(permission.Id)).Should().BeNull();
+        (await context.Users.FindAsync(user.Id)).Should().BeNull();
     }
 
     [Fact]
@@ -107,12 +109,12 @@ public class EfRepositoryTests
     {
         // Arrange
         await using var context = CreateContext();
-        var repository = new EfRepository<Role>(context);
-        var role = Role.Create("Designer", null);
-        await repository.AddAsync(role);
+        var repository = new EfRepository<User>(context);
+        var user = User.Create("Ana Silva", Email.Create("ana@empresa.com").Value, "hash", UserRole.Requester);
+        await repository.AddAsync(user);
         await context.SaveChangesAsync();
-        role.MarkAsDeleted("admin@briefme.com");
-        repository.Update(role);
+        user.MarkAsDeleted("admin@briefme.com");
+        repository.Update(user);
         await context.SaveChangesAsync();
 
         // Act

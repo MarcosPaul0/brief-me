@@ -1,4 +1,5 @@
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Persistence;
 using FluentAssertions;
@@ -19,8 +20,8 @@ public class UnitOfWorkTests
         // Arrange
         await using var context = CreateContext();
         var unitOfWork = new UnitOfWork(context);
-        context.Users.Add(User.Create("Ana", Email.Create("ana@empresa.com").Value, "hash"));
-        context.Users.Add(User.Create("Bia", Email.Create("bia@empresa.com").Value, "hash"));
+        context.Users.Add(User.Create("Ana", Email.Create("ana@empresa.com").Value, "hash", UserRole.Requester));
+        context.Users.Add(User.Create("Bia", Email.Create("bia@empresa.com").Value, "hash", UserRole.Requester));
 
         // Act
         await unitOfWork.CommitAsync();

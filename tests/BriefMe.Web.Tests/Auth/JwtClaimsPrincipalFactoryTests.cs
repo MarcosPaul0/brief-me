@@ -51,8 +51,7 @@ public class JwtClaimsPrincipalFactoryTests
             new Claim(JwtRegisteredClaimNames.Sub, userId),
             new Claim(JwtRegisteredClaimNames.Email, "ana@briefme.com"),
             new Claim(JwtRegisteredClaimNames.Name, "Ana Silva"),
-            new Claim(ClaimTypes.Role, "Designer"),
-            new Claim(CustomClaimTypes.Permission, "users.create")
+            new Claim(ClaimTypes.Role, "Designer")
         };
         var token = CreateToken(settings, claims, TimeSpan.FromMinutes(15));
         var factory = CreateFactory(settings);
@@ -67,7 +66,6 @@ public class JwtClaimsPrincipalFactoryTests
         // "name" (unlike "sub"/"email") isn't in JwtSecurityTokenHandler's default inbound claim map, so it stays as-is.
         principal.FindFirst(JwtRegisteredClaimNames.Name)!.Value.Should().Be("Ana Silva");
         principal.IsInRole("Designer").Should().BeTrue();
-        principal.HasClaim(CustomClaimTypes.Permission, "users.create").Should().BeTrue();
     }
 
     [Fact]

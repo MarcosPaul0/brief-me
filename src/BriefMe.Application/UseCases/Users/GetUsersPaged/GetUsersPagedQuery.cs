@@ -10,7 +10,7 @@ namespace BriefMe.Application.UseCases.Users.GetUsersPaged;
 public sealed record GetUsersPagedQuery(
     string? Search,
     UserStatus? Status,
-    Guid? RoleId,
+    UserRole? Role,
     int Page,
     int PageSize,
     UserSortField SortField = UserSortField.FullName,

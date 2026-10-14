@@ -2,7 +2,7 @@
    Route note: the Blazor screen lives at /briefings/meus because @page "/briefings" would collide with
    BriefingsController's [Route("briefings")] GET (AmbiguousMatchException — the USR-042 bug). *@
 @page "/briefings/meus"
-@attribute [Authorize(Policy = "briefings.view-own")]
+@attribute [Authorize(Roles = nameof(UserRole.Requester))]
 @using BriefMe.Application.Common.Dtos
 @using BriefMe.Application.UseCases.Briefings
 @using BriefMe.Application.UseCases.Categories
@@ -25,12 +25,10 @@
                 </p>
             </div>
 
-            <AuthorizePermission Permission="briefings.create">
-                <button type="button" @onclick="NavigateToNew"
-                        class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90">
-                    Novo briefing
-                </button>
-            </AuthorizePermission>
+            <button type="button" @onclick="NavigateToNew"
+                    class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90">
+                Novo briefing
+            </button>
         </div>
 
         <form @onsubmit="ApplyFiltersAsync" @onsubmit:preventDefault="true"

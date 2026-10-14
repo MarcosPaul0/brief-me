@@ -15,6 +15,9 @@ public sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCom
             .NotEmpty().WithMessage(UserErrors.Validation.EmailRequired)
             .EmailAddress().WithMessage(UserErrors.Validation.InvalidEmailFormat);
 
+        RuleFor(x => x.Role)
+            .IsInEnum().WithMessage(UserErrors.Validation.InvalidRole);
+
         RuleFor(x => x.Password).Custom((password, context) =>
         {
             var result = Password.Create(password);

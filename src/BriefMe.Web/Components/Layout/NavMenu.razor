@@ -7,27 +7,13 @@
     <nav class="flex flex-1 flex-col gap-1" aria-label="Navegação principal">
         <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Início</NavLink>
 
-        <AuthorizeView Policy="briefings.view-own">
+        <AuthorizeView Roles="@nameof(UserRole.Requester)">
             <NavLink class="nav-link" href="briefings/meus">Meus briefings</NavLink>
-        </AuthorizeView>
-
-        <AuthorizeView Policy="briefings.create">
             <NavLink class="nav-link" href="briefings/novo">Novo briefing</NavLink>
         </AuthorizeView>
 
-
-
-
-        <AuthorizeView Policy="users.view">
+        <AuthorizeView Roles="@nameof(UserRole.Admin)">
             <NavLink class="nav-link" href="usuarios">Usuários</NavLink>
-        </AuthorizeView>
-
-        <AuthorizeView Policy="roles.manage">
-            <NavLink class="nav-link" href="perfis">Perfis</NavLink>
-        </AuthorizeView>
-
-        <AuthorizeView Policy="permissions.manage">
-            <NavLink class="nav-link" href="permissoes">Permissões</NavLink>
         </AuthorizeView>
     </nav>
 

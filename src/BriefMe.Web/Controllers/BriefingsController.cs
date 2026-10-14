@@ -5,9 +5,7 @@ using BriefMe.Application.UseCases.Briefings.EditBriefing;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
 using BriefMe.Application.UseCases.Briefings.SubmitBriefingForApproval;
-using BriefMe.Domain.Constants;
 using BriefMe.Domain.Enums;
-using BriefMe.Web.Authorization;
 using BriefMe.Web.Contracts.Briefings;
 using BriefMe.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -23,11 +21,10 @@ namespace BriefMe.Web.Controllers;
 /// </summary>
 [ApiController]
 [Route("briefings")]
-[Authorize]
+[Authorize(Roles = nameof(UserRole.Requester))]
 public sealed class BriefingsController(ISender sender) : ControllerBase
 {
     [HttpPost]
-    [HasPermission(Permissions.Briefings.Create)]
     public async Task<IActionResult> Create(CreateBriefingRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateBriefingCommand(
@@ -47,7 +44,6 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [HasPermission(Permissions.Briefings.Create)]
     public async Task<IActionResult> Update(Guid id, UpdateBriefingRequest request, CancellationToken cancellationToken)
     {
         var command = new EditBriefingCommand(
@@ -65,7 +61,6 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpPost("{id:guid}/submit")]
-    [HasPermission(Permissions.Briefings.Create)]
     public async Task<IActionResult> Submit(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new SubmitBriefingForApprovalCommand(id), cancellationToken);
@@ -74,7 +69,6 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpPost("{id:guid}/cancel")]
-    [HasPermission(Permissions.Briefings.Create)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new CancelBriefingCommand(id), cancellationToken);
@@ -83,7 +77,6 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [HasPermission(Permissions.Briefings.ViewOwn)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetBriefingByIdQuery(id), cancellationToken);
@@ -92,7 +85,6 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpGet]
-    [HasPermission(Permissions.Briefings.ViewOwn)]
     public async Task<IActionResult> GetMyBriefings(
         [FromQuery] BriefingStatus? status,
         [FromQuery] Guid? categoryId,

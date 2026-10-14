@@ -53,8 +53,6 @@ public static class AuthenticationExtensions
             });
 
         services.AddAuthorization();
-        services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-        services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, ComponentAwareAuthorizationMiddlewareResultHandler>();
 
         return services;

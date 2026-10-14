@@ -7,13 +7,12 @@ namespace BriefMe.Domain.Entities;
 
 public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 {
-    private readonly List<UserRole> _userRoles = [];
-
-    private User(Guid id, string fullName, Email email, string passwordHash) : base(id)
+    private User(Guid id, string fullName, Email email, string passwordHash, UserRole role) : base(id)
     {
         FullName = fullName;
         Email = email;
         PasswordHash = passwordHash;
+        Role = role;
         Status = UserStatus.Active;
     }
 
@@ -29,7 +28,7 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 
     public UserStatus Status { get; private set; }
 
-    public IReadOnlyCollection<UserRole> UserRoles => _userRoles.AsReadOnly();
+    public UserRole Role { get; private set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -45,7 +44,7 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 
     public string? DeletedBy { get; private set; }
 
-    public static User Create(string fullName, Email email, string passwordHash)
+    public static User Create(string fullName, Email email, string passwordHash, UserRole role)
     {
         if (string.IsNullOrWhiteSpace(fullName))
             throw new DomainException("Nome do usuário é obrigatório.");
@@ -53,7 +52,10 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
         if (string.IsNullOrWhiteSpace(passwordHash))
             throw new DomainException("Hash de senha é obrigatório.");
 
-        return new User(Guid.NewGuid(), fullName.Trim(), email, passwordHash);
+        if (!Enum.IsDefined(role))
+            throw new DomainException("Perfil do usuário inválido.");
+
+        return new User(Guid.NewGuid(), fullName.Trim(), email, passwordHash, role);
     }
 
     public void ChangePassword(string newPasswordHash)
@@ -77,17 +79,12 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 
     public void Deactivate() => Status = UserStatus.Inactive;
 
-    public void AssignRole(Guid roleId)
+    public void ChangeRole(UserRole role)
     {
-        if (_userRoles.Any(ur => ur.RoleId == roleId))
-            return;
+        if (!Enum.IsDefined(role))
+            throw new DomainException("Perfil do usuário inválido.");
 
-        _userRoles.Add(UserRole.Create(Id, roleId));
-    }
-
-    public void RemoveRole(Guid roleId)
-    {
-        _userRoles.RemoveAll(ur => ur.RoleId == roleId);
+        Role = role;
     }
 
     public void MarkAsDeleted(string? deletedBy)

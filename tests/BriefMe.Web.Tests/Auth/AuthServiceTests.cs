@@ -1,3 +1,4 @@
+using BriefMe.Domain.Enums;
 using BriefMe.Application.Common.Dtos;
 using BriefMe.Application.UseCases.Auth;
 using BriefMe.Infrastructure.Auth;
@@ -58,7 +59,7 @@ public class AuthServiceTests
         new(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(
-                new AuthenticationDto(accessToken, refreshToken, 900, Guid.NewGuid(), "Ana Designer", "ana@briefme.test", ["Designer"]),
+                new AuthenticationDto(accessToken, refreshToken, 900, Guid.NewGuid(), "Ana Designer", "ana@briefme.test", UserRole.Designer),
                 options: WireJsonOptions)
         };
 

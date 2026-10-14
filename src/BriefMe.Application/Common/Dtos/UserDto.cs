@@ -1,4 +1,5 @@
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 
 namespace BriefMe.Application.Common.Dtos;
 
@@ -6,14 +7,8 @@ public sealed record UserDto(
     Guid UserId,
     string FullName,
     string Email,
-    IReadOnlyCollection<string> Roles)
+    UserRole Role)
 {
-    public static UserDto FromUserAndRoles(User user, IReadOnlyList<Role> roles)
-    {
-        return new UserDto(
-            user.Id,
-            user.FullName,
-            user.Email.Value,
-            [.. roles.Select(r => r.Name)]);
-    }
+    public static UserDto FromUser(User user) =>
+        new(user.Id, user.FullName, user.Email.Value, user.Role);
 }

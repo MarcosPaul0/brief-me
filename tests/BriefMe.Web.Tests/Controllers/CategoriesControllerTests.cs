@@ -4,7 +4,7 @@ using BriefMe.Application.Common.Dtos;
 using BriefMe.Application.UseCases.Categories.GetActiveCategories;
 using BriefMe.Application.UseCases.Categories;
 using BriefMe.Domain.Common;
-using BriefMe.Domain.Constants;
+using BriefMe.Domain.Enums;
 using BriefMe.Infrastructure.Auth;
 using BriefMe.Web.Auth;
 using BriefMe.Web.Controllers;
@@ -38,7 +38,7 @@ public class CategoriesControllerTests
         AccessTokenMinutes = 15
     };
 
-    private static string GenerateToken(JwtSettings settings, Guid userId, string[]? roles = null, string[]? permissions = null)
+    private static string GenerateToken(JwtSettings settings, Guid userId, string[]? roles = null)
     {
         var keyBytes = Encoding.UTF8.GetBytes(settings.SecretKey);
         var credentials = new SigningCredentials(new SymmetricSecurityKey(keyBytes), SecurityAlgorithms.HmacSha256);
@@ -49,7 +49,6 @@ public class CategoriesControllerTests
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         claims.AddRange((roles ?? []).Select(role => new Claim(ClaimTypes.Role, role)));
-        claims.AddRange((permissions ?? []).Select(permission => new Claim(CustomClaimTypes.Permission, permission)));
 
         var token = new JwtSecurityToken(
             issuer: settings.Issuer,
@@ -92,7 +91,7 @@ public class CategoriesControllerTests
         client.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
     [Fact]
-    public async Task GetActive_WhenCallerHasBriefingsCreatePermission_ReturnsOkWithCategories()
+    public async Task GetActive_WhenCallerIsRequester_ReturnsOkWithCategories()
     {
         // Arrange
         IReadOnlyList<CategoryListItemDto> categories = [new(Guid.NewGuid(), "Campanha"), new(Guid.NewGuid(), "Evento")];
@@ -102,7 +101,7 @@ public class CategoriesControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.GetAsync("/categories");
@@ -114,14 +113,14 @@ public class CategoriesControllerTests
     }
 
     [Fact]
-    public async Task GetActive_WhenCallerLacksBriefingsCreatePermission_ReturnsForbidden()
+    public async Task GetActive_WhenCallerIsNotRequester_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
         var response = await client.GetAsync("/categories");

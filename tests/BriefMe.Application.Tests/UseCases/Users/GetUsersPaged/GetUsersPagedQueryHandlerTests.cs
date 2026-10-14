@@ -12,26 +12,23 @@ namespace BriefMe.Application.Tests.UseCases.Users.GetUsersPaged;
 public class GetUsersPagedQueryHandlerTests
 {
     private readonly Mock<IUserRepository> _userRepositoryMock = new();
-    private readonly Mock<IRoleRepository> _roleRepositoryMock = new();
     private readonly GetUsersPagedQueryHandler _handler;
 
     public GetUsersPagedQueryHandlerTests()
     {
-        _handler = new GetUsersPagedQueryHandler(_userRepositoryMock.Object, _roleRepositoryMock.Object);
+        _handler = new GetUsersPagedQueryHandler(_userRepositoryMock.Object);
     }
 
     private static User CreateUser(string fullName = "Ana Silva", string email = "ana@briefme.com") =>
-        User.Create(fullName, Email.Create(email).Value, "hashed-password");
+        User.Create(fullName, Email.Create(email).Value, "hashed-password", UserRole.Requester);
 
     [Fact]
     public async Task Handle_WhenRepositoryReturnsPage_ReturnsMappedItemsWithPaginationMetadata()
     {
         // Arrange
-        var role = Role.Create("Designer", null);
         var user = CreateUser();
-        user.AssignRole(role.Id);
 
-        var query = new GetUsersPagedQuery(Search: null, Status: null, RoleId: null, Page: 2, PageSize: 10);
+        var query = new GetUsersPagedQuery(Search: null, Status: null, Role: null, Page: 2, PageSize: 10);
         var expectedFilter = new UserFilter(null, null, null);
         var expectedSort = new UserSort(UserSortField.FullName, false);
 
@@ -42,10 +39,6 @@ public class GetUsersPagedQueryHandlerTests
         _userRepositoryMock
             .Setup(r => r.CountAsync(expectedFilter, default))
             .ReturnsAsync(25);
-
-        _roleRepositoryMock
-            .Setup(r => r.GetByIdsAsync(It.Is<IEnumerable<Guid>>(ids => ids.Contains(role.Id)), default))
-            .ReturnsAsync([role]);
 
         // Act
         var result = await _handler.Handle(query, default);
@@ -60,24 +53,23 @@ public class GetUsersPagedQueryHandlerTests
         item.FullName.Should().Be("Ana Silva");
         item.Email.Should().Be("ana@briefme.com");
         item.Status.Should().Be(UserStatus.Active);
-        item.Roles.Should().BeEquivalentTo(["Designer"]);
+        item.Role.Should().Be(UserRole.Requester);
     }
 
     [Fact]
     public async Task Handle_WhenFiltersAndSortAreInformed_PassesThemToRepository()
     {
         // Arrange
-        var roleId = Guid.NewGuid();
         var query = new GetUsersPagedQuery(
             Search: "ana",
             Status: UserStatus.Active,
-            RoleId: roleId,
+            Role: UserRole.Designer,
             Page: 1,
             PageSize: 20,
             SortField: UserSortField.Email,
             SortDescending: true);
 
-        var expectedFilter = new UserFilter("ana", UserStatus.Active, roleId);
+        var expectedFilter = new UserFilter("ana", UserStatus.Active, UserRole.Designer);
         var expectedSort = new UserSort(UserSortField.Email, true);
 
         _userRepositoryMock
@@ -93,10 +85,10 @@ public class GetUsersPagedQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenPageIsEmpty_ReturnsEmptyItemsWithoutQueryingRoles()
+    public async Task Handle_WhenPageIsEmpty_ReturnsEmptyItems()
     {
         // Arrange
-        var query = new GetUsersPagedQuery(Search: null, Status: null, RoleId: null, Page: 1, PageSize: 10);
+        var query = new GetUsersPagedQuery(Search: null, Status: null, Role: null, Page: 1, PageSize: 10);
 
         _userRepositoryMock
             .Setup(r => r.GetPagedAsync(It.IsAny<UserFilter>(), 1, 10, It.IsAny<UserSort>(), default))
@@ -108,6 +100,5 @@ public class GetUsersPagedQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.Items.Should().BeEmpty();
-        _roleRepositoryMock.Verify(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), default), Times.Never);
     }
 }

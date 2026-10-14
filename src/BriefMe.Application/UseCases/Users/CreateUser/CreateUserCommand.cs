@@ -1,3 +1,4 @@
+using BriefMe.Domain.Enums;
 using BriefMe.Application.Abstractions.Messaging;
 using BriefMe.Application.Common.Dtos;
 using BriefMe.Application.UseCases.Users;
@@ -8,4 +9,4 @@ public sealed record CreateUserCommand(
     string FullName,
     string Email,
     string Password,
-    IReadOnlyCollection<Guid> RoleIds) : ICommand<UserDto>;
+    UserRole Role) : ICommand<UserDto>;

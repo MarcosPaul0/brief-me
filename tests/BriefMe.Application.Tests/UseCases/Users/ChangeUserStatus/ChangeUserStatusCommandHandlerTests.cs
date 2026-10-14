@@ -27,7 +27,7 @@ public class ChangeUserStatusCommandHandlerTests
     }
 
     private static User CreateExistingUser() =>
-        User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, "hash");
+        User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, "hash", UserRole.Requester);
 
     [Fact]
     public async Task Handle_WhenDeactivatingExistingUser_UpdatesStatusRevokesTokensAndCommits()

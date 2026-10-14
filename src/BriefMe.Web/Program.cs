@@ -54,12 +54,6 @@ builder.Services.AddScoped<AuthenticatedApiClient>();
 // Blazor data client for the user-listing page (USR-042): runs over the "Api" pipeline above.
 builder.Services.AddScoped<IUsersApiClient, UsersApiClient>();
 
-// Blazor data client for the roles/permissions screen (USR-044): same "Api" pipeline.
-builder.Services.AddScoped<IRolesApiClient, RolesApiClient>();
-
-// Read-only permission catalog, shared by the roles editor and the catalog screen (USR-045).
-builder.Services.AddScoped<IPermissionsApiClient, PermissionsApiClient>();
-
 // Blazor data client for the briefing create/edit form (BRF-013): same "Api" pipeline.
 builder.Services.AddScoped<IBriefingsApiClient, BriefingsApiClient>();
 

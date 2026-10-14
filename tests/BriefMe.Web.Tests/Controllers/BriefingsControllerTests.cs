@@ -9,7 +9,6 @@ using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
 using BriefMe.Application.UseCases.Briefings.SubmitBriefingForApproval;
 using BriefMe.Application.UseCases.Briefings;
 using BriefMe.Domain.Common;
-using BriefMe.Domain.Constants;
 using BriefMe.Domain.Enums;
 using BriefMe.Infrastructure.Auth;
 using BriefMe.Web.Auth;
@@ -49,7 +48,7 @@ public class BriefingsControllerTests
 
     // Mirrors UsersControllerTests: builds a token straight from claims, since these tests target the
     // Web-layer authorization pipeline (permission policies), not JwtService's claim population.
-    private static string GenerateToken(JwtSettings settings, Guid userId, string[]? roles = null, string[]? permissions = null)
+    private static string GenerateToken(JwtSettings settings, Guid userId, string[]? roles = null)
     {
         var keyBytes = Encoding.UTF8.GetBytes(settings.SecretKey);
         var credentials = new SigningCredentials(new SymmetricSecurityKey(keyBytes), SecurityAlgorithms.HmacSha256);
@@ -60,7 +59,6 @@ public class BriefingsControllerTests
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         claims.AddRange((roles ?? []).Select(role => new Claim(ClaimTypes.Role, role)));
-        claims.AddRange((permissions ?? []).Select(permission => new Claim(CustomClaimTypes.Permission, permission)));
 
         var token = new JwtSecurityToken(
             issuer: settings.Issuer,
@@ -127,7 +125,7 @@ public class BriefingsControllerTests
         BriefingStatus.Draft);
 
     [Fact]
-    public async Task Create_WhenCallerHasBriefingsCreatePermission_ReturnsCreatedWithLocation()
+    public async Task Create_WhenCallerIsRequester_ReturnsCreatedWithLocation()
     {
         // Arrange
         var createdId = Guid.NewGuid();
@@ -137,7 +135,7 @@ public class BriefingsControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.PostAsJsonAsync(
@@ -152,14 +150,14 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task Create_WhenCallerLacksBriefingsCreatePermission_ReturnsForbidden()
+    public async Task Create_WhenCallerIsNotRequester_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
         var response = await client.PostAsJsonAsync(
@@ -181,7 +179,7 @@ public class BriefingsControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.PostAsJsonAsync(
@@ -204,7 +202,7 @@ public class BriefingsControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.PutAsJsonAsync(
@@ -218,7 +216,7 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task Submit_WhenCallerHasBriefingsCreatePermission_ReturnsOkWithBriefingDto()
+    public async Task Submit_WhenCallerIsRequester_ReturnsOkWithBriefingDto()
     {
         // Arrange
         var briefingId = Guid.NewGuid();
@@ -228,7 +226,7 @@ public class BriefingsControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.Create]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.PostAsync($"/briefings/{briefingId}/submit", content: null);
@@ -240,14 +238,14 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task Cancel_WhenCallerLacksBriefingsCreatePermission_ReturnsForbidden()
+    public async Task Cancel_WhenCallerIsNotRequester_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
         var response = await client.PostAsync($"/briefings/{Guid.NewGuid()}/cancel", content: null);
@@ -258,7 +256,7 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task GetById_WhenCallerHasViewOwnPermission_ReturnsOkWithBriefingDetailDto()
+    public async Task GetById_WhenCallerIsRequester_ReturnsOkWithBriefingDetailDto()
     {
         // Arrange
         var briefingId = Guid.NewGuid();
@@ -268,7 +266,7 @@ public class BriefingsControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewOwn]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.GetAsync($"/briefings/{briefingId}");
@@ -289,7 +287,7 @@ public class BriefingsControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewOwn]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.GetAsync($"/briefings/{Guid.NewGuid()}");
@@ -299,14 +297,14 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task GetById_WhenCallerLacksViewOwnPermission_ReturnsForbidden()
+    public async Task GetById_WhenCallerIsNotRequester_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
         var response = await client.GetAsync($"/briefings/{Guid.NewGuid()}");
@@ -317,7 +315,7 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task GetMyBriefings_WhenCallerHasViewOwnPermission_MapsQueryParamsAndReturnsOk()
+    public async Task GetMyBriefings_WhenCallerIsRequester_MapsQueryParamsAndReturnsOk()
     {
         // Arrange
         GetBriefingsByRequesterQuery? capturedQuery = null;
@@ -330,7 +328,7 @@ public class BriefingsControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: [Permissions.Briefings.ViewOwn]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.GetAsync($"/briefings?page=2&pageSize=5&status=Draft&categoryId={categoryId}");
@@ -345,14 +343,14 @@ public class BriefingsControllerTests
     }
 
     [Fact]
-    public async Task GetMyBriefings_WhenCallerLacksViewOwnPermission_ReturnsForbidden()
+    public async Task GetMyBriefings_WhenCallerIsNotRequester_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
         var response = await client.GetAsync("/briefings");

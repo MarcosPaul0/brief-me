@@ -12,6 +12,6 @@ public sealed record UserListQuery(
     int PageSize = 20,
     string? Search = null,
     UserStatus? Status = null,
-    Guid? RoleId = null,
+    UserRole? Role = null,
     UserSortField SortField = UserSortField.FullName,
     bool SortDescending = false);

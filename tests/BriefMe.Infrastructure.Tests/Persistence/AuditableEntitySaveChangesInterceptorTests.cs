@@ -1,4 +1,6 @@
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
+using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Persistence;
 using BriefMe.Infrastructure.Persistence.Interceptors;
 using BriefMe.Infrastructure.Tests.TestDoubles;
@@ -24,15 +26,15 @@ public class AuditableEntitySaveChangesInterceptorTests
     {
         // Arrange
         await using var context = CreateContext("admin@briefme.com");
-        var permission = Permission.Create("users.create", "Criar usuários", null, "Usuários");
-        context.Permissions.Add(permission);
+        var user = User.Create("Ana Silva", Email.Create("ana@empresa.com").Value, "hash", UserRole.Requester);
+        context.Users.Add(user);
 
         // Act
         await context.SaveChangesAsync();
 
         // Assert
-        permission.CreatedAt.Should().NotBe(default);
-        permission.CreatedBy.Should().Be("admin@briefme.com");
+        user.CreatedAt.Should().NotBe(default);
+        user.CreatedBy.Should().Be("admin@briefme.com");
     }
 
     [Fact]
@@ -40,16 +42,16 @@ public class AuditableEntitySaveChangesInterceptorTests
     {
         // Arrange
         await using var context = CreateContext("admin@briefme.com");
-        var role = Role.Create("Designer", null);
-        context.Roles.Add(role);
+        var user = User.Create("Ana Silva", Email.Create("ana@empresa.com").Value, "hash", UserRole.Requester);
+        context.Users.Add(user);
         await context.SaveChangesAsync();
 
         // Act
-        role.Rename("Designer Sênior");
+        user.ChangePassword("new-hash");
         await context.SaveChangesAsync();
 
         // Assert
-        role.UpdatedAt.Should().NotBeNull();
-        role.UpdatedBy.Should().Be("admin@briefme.com");
+        user.UpdatedAt.Should().NotBeNull();
+        user.UpdatedBy.Should().Be("admin@briefme.com");
     }
 }

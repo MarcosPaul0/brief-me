@@ -1,12 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Auth;
-using BriefMe.Infrastructure.Persistence;
-using BriefMe.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -24,20 +22,11 @@ public class JwtServiceTests
         AccessTokenMinutes = 15
     };
 
-    private static AppDbContext CreateContext()
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        return new AppDbContext(options);
-    }
-
-    private static User CreateUser(string fullName, string email) =>
-        User.Create(fullName, Email.Create(email).Value, "hashed-password");
+    private static User CreateUser(string fullName, string email, UserRole role = UserRole.Requester) =>
+        User.Create(fullName, Email.Create(email).Value, "hashed-password", role);
 
     [Fact]
-    public void GenerateAccessToken_WhenUserHasNoRoles_ReturnsTokenWithIdentityClaimsAndNoRoleOrPermissionClaims()
+    public void GenerateAccessToken_WhenCalled_ReturnsTokenWithIdentityClaims()
     {
         // Arrange
         var service = new JwtService(Options.Create(CreateSettings()));
@@ -51,45 +40,25 @@ public class JwtServiceTests
         jwt.Subject.Should().Be(user.Id.ToString());
         jwt.Claims.Single(c => c.Type == JwtRegisteredClaimNames.Email).Value.Should().Be(user.Email.Value);
         jwt.Claims.Single(c => c.Type == JwtRegisteredClaimNames.Name).Value.Should().Be(user.FullName);
-        jwt.Claims.Should().NotContain(c => c.Type == ClaimTypes.Role);
-        jwt.Claims.Should().NotContain(c => c.Type == CustomClaimTypes.Permission);
         expiresAt.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(15), TimeSpan.FromSeconds(5));
     }
 
-    [Fact]
-    public async Task GenerateAccessToken_WhenUserHasRolesWithPermissions_IncludesRoleAndDistinctPermissionClaims()
+    [Theory]
+    [InlineData(UserRole.Admin, "Admin")]
+    [InlineData(UserRole.Designer, "Designer")]
+    [InlineData(UserRole.Requester, "Requester")]
+    public void GenerateAccessToken_WhenCalled_CarriesExactlyTheUsersRole(UserRole role, string expectedClaim)
     {
         // Arrange
-        await using var context = CreateContext();
-        var createPermission = Permission.Create("users.create", "Criar usuários", null, "Usuários");
-        var updatePermission = Permission.Create("users.update", "Editar usuários", null, "Usuários");
-
-        var designerRole = Role.Create("Designer", null);
-        designerRole.AddPermission(createPermission.Id);
-
-        var managerRole = Role.Create("Gestor de Design", null);
-        managerRole.AddPermission(createPermission.Id);
-        managerRole.AddPermission(updatePermission.Id);
-
-        var user = CreateUser("Ana Silva", "ana@briefme.com");
-        user.AssignRole(designerRole.Id);
-        user.AssignRole(managerRole.Id);
-
-        await context.Permissions.AddRangeAsync(createPermission, updatePermission);
-        await context.Roles.AddRangeAsync(designerRole, managerRole);
-        await context.Users.AddAsync(user);
-        await context.SaveChangesAsync();
-
-        var hydratedUser = await new UserRepository(context).GetByEmailAsync(Email.Create("ana@briefme.com").Value);
         var service = new JwtService(Options.Create(CreateSettings()));
+        var user = CreateUser("Ana Silva", "ana@briefme.com", role);
 
         // Act
-        var (token, _) = service.GenerateAccessToken(hydratedUser!);
+        var (token, _) = service.GenerateAccessToken(user);
 
         // Assert
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
-        jwt.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).Should().BeEquivalentTo("Designer", "Gestor de Design");
-        jwt.Claims.Where(c => c.Type == CustomClaimTypes.Permission).Select(c => c.Value).Should().BeEquivalentTo("users.create", "users.update");
+        jwt.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).Should().Equal(expectedClaim);
     }
 
     [Fact]

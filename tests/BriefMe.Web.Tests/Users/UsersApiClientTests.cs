@@ -42,7 +42,7 @@ public class UsersApiClientTests
                 {
                     items = new[]
                     {
-                        new { userId = Guid.NewGuid(), fullName = "Ana Designer", email = "ana@briefme.test", status = 1, roles = new[] { "Designer" } }
+                        new { userId = Guid.NewGuid(), fullName = "Ana Designer", email = "ana@briefme.test", status = 1, role = 2 }
                     },
                     page = 2,
                     pageSize = 10,
@@ -72,14 +72,13 @@ public class UsersApiClientTests
     public async Task GetUsersAsync_WhenAllFiltersProvided_BuildsExpectedQueryString()
     {
         // Arrange
-        var roleId = Guid.NewGuid();
         var (client, handler) = CreateSut(_ => UsersPageResponse());
         var query = new UserListQuery(
             Page: 3,
             PageSize: 20,
             Search: "  ana  ",
             Status: UserStatus.Inactive,
-            RoleId: roleId,
+            Role: UserRole.Designer,
             SortField: UserSortField.Email,
             SortDescending: true);
 
@@ -93,7 +92,7 @@ public class UsersApiClientTests
         QueryValue(request, "pageSize").Should().Be("20");
         QueryValue(request, "search").Should().Be("ana");
         QueryValue(request, "status").Should().Be(nameof(UserStatus.Inactive));
-        QueryValue(request, "roleId").Should().Be(roleId.ToString());
+        QueryValue(request, "role").Should().Be(nameof(UserRole.Designer));
         QueryValue(request, "sortField").Should().Be(nameof(UserSortField.Email));
         QueryValue(request, "sortDescending").Should().Be("true");
     }
@@ -111,7 +110,7 @@ public class UsersApiClientTests
         // Assert
         var request = handler.Requests.Single();
         var parsed = ParseQuery(request);
-        parsed.Keys.Should().NotContain(["search", "status", "roleId"]);
+        parsed.Keys.Should().NotContain(["search", "status", "role"]);
         QueryValue(request, "page").Should().Be("1");
         QueryValue(request, "sortDescending").Should().Be("false");
     }
@@ -177,60 +176,11 @@ public class UsersApiClientTests
         result.IsFailure.Should().BeTrue();
     }
 
-    [Fact]
-    public async Task GetRolesAsync_WhenResponseIsSuccess_ReturnsRoles()
-    {
-        // Arrange
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = JsonContent.Create(
-                new[]
-                {
-                    new { roleId = Guid.NewGuid(), name = "Administrador", description = (string?)null, isSystemRole = true }
-                },
-                options: WireJsonOptions)
-        };
-        var (client, handler) = CreateSut(_ => response);
-
-        // Act
-        var roles = await client.GetRolesAsync();
-
-        // Assert
-        roles.Should().ContainSingle().Which.Name.Should().Be("Administrador");
-        handler.Requests.Single().RequestUri!.AbsolutePath.Should().Be("/roles");
-    }
-
-    [Fact]
-    public async Task GetRolesAsync_WhenForbidden_ReturnsEmptyList()
-    {
-        // Arrange
-        var (client, _) = CreateSut(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
-
-        // Act
-        var roles = await client.GetRolesAsync();
-
-        // Assert
-        roles.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task GetRolesAsync_WhenTransportFails_ReturnsEmptyList()
-    {
-        // Arrange
-        var (client, _) = CreateSut(_ => throw new HttpRequestException("boom"));
-
-        // Act
-        var roles = await client.GetRolesAsync();
-
-        // Assert
-        roles.Should().BeEmpty();
-    }
-
     private static HttpResponseMessage UserResultResponse(HttpStatusCode status, string fullName = "Ana Designer", string email = "ana@briefme.test") =>
         new(status)
         {
             Content = JsonContent.Create(
-                new { userId = Guid.NewGuid(), fullName, email, roles = new[] { "Designer" } },
+                new { userId = Guid.NewGuid(), fullName, email, role = 2 },
                 options: WireJsonOptions)
         };
 
@@ -284,7 +234,7 @@ public class UsersApiClientTests
     {
         // Arrange
         var (client, handler) = CreateSut(_ => UserResultResponse(HttpStatusCode.Created));
-        var request = new CreateUserRequest("Ana Designer", "ana@briefme.test", "Senha123", [Guid.NewGuid()]);
+        var request = new CreateUserRequest("Ana Designer", "ana@briefme.test", "Senha123", UserRole.Designer);
 
         // Act
         var result = await client.CreateUserAsync(request);
@@ -307,7 +257,7 @@ public class UsersApiClientTests
             ["Password"] = ["Senha deve conter ao menos um número."]
         };
         var (client, _) = CreateSut(_ => ValidationProblemResponse(errors));
-        var request = new CreateUserRequest("", "invalid", "senha", [Guid.NewGuid()]);
+        var request = new CreateUserRequest("", "invalid", "senha", UserRole.Designer);
 
         // Act
         var result = await client.CreateUserAsync(request);
@@ -324,7 +274,7 @@ public class UsersApiClientTests
     {
         // Arrange
         var (client, _) = CreateSut(_ => ProblemResponse(HttpStatusCode.Conflict, "E-mail já cadastrado."));
-        var request = new CreateUserRequest("Ana", "ana@briefme.test", "Senha123", [Guid.NewGuid()]);
+        var request = new CreateUserRequest("Ana", "ana@briefme.test", "Senha123", UserRole.Designer);
 
         // Act
         var result = await client.CreateUserAsync(request);
@@ -340,7 +290,7 @@ public class UsersApiClientTests
     {
         // Arrange
         var (client, _) = CreateSut(_ => throw new HttpRequestException("boom"));
-        var request = new CreateUserRequest("Ana", "ana@briefme.test", "Senha123", [Guid.NewGuid()]);
+        var request = new CreateUserRequest("Ana", "ana@briefme.test", "Senha123", UserRole.Designer);
 
         // Act
         var result = await client.CreateUserAsync(request);
@@ -357,7 +307,7 @@ public class UsersApiClientTests
         // Arrange
         var (client, handler) = CreateSut(_ => UserResultResponse(HttpStatusCode.OK));
         var id = Guid.NewGuid();
-        var request = new UpdateUserRequest("Ana Editada", "ana@briefme.test", [Guid.NewGuid()]);
+        var request = new UpdateUserRequest("Ana Editada", "ana@briefme.test", UserRole.Designer);
 
         // Act
         var result = await client.UpdateUserAsync(id, request);
@@ -374,87 +324,12 @@ public class UsersApiClientTests
     {
         // Arrange
         var (client, _) = CreateSut(_ => ProblemResponse(HttpStatusCode.Conflict, "E-mail já cadastrado."));
-        var request = new UpdateUserRequest("Ana", "ana@briefme.test", [Guid.NewGuid()]);
+        var request = new UpdateUserRequest("Ana", "ana@briefme.test", UserRole.Designer);
 
         // Act
         var result = await client.UpdateUserAsync(Guid.NewGuid(), request);
 
         // Assert
         result.Errors.Should().ContainSingle().Which.PropertyName.Should().Be("Email");
-    }
-
-    [Fact]
-    public async Task UpdateUserRolesAsync_WhenResponseIsOk_ReturnsPersistedUser()
-    {
-        // Arrange
-        var (client, _) = CreateSut(_ => UserResultResponse(HttpStatusCode.OK, "Ana Designer"));
-
-        // Act
-        var result = await client.UpdateUserRolesAsync(Guid.NewGuid(), new UpdateUserRolesRequest([Guid.NewGuid()]));
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Roles.Should().BeEquivalentTo("Designer");
-    }
-
-    [Fact]
-    public async Task UpdateUserRolesAsync_WhenCalled_PutsRoleIdsToUserRolesRoute()
-    {
-        // Arrange
-        var id = Guid.NewGuid();
-        var roleId = Guid.NewGuid();
-        var (client, handler) = CreateSut(_ => UserResultResponse(HttpStatusCode.OK));
-
-        // Act
-        await client.UpdateUserRolesAsync(id, new UpdateUserRolesRequest([roleId]));
-
-        // Assert
-        var sent = handler.Requests.Single();
-        sent.Method.Should().Be(HttpMethod.Put);
-        sent.RequestUri!.AbsolutePath.Should().Be($"/users/{id}/roles");
-        var body = await sent.Content!.ReadFromJsonAsync<UpdateUserRolesRequest>(WireJsonOptions);
-        body!.RoleIds.Should().BeEquivalentTo([roleId]);
-    }
-
-    [Fact]
-    public async Task UpdateUserRolesAsync_WhenNotFound_ReturnsNotFoundResult()
-    {
-        // Arrange
-        var (client, _) = CreateSut(_ => ProblemResponse(HttpStatusCode.NotFound, "Usuário não encontrado."));
-
-        // Act
-        var result = await client.UpdateUserRolesAsync(Guid.NewGuid(), new UpdateUserRolesRequest([]));
-
-        // Assert
-        result.Type.Should().Be(ErrorType.NotFound);
-        result.Error.Should().Be("Usuário não encontrado.");
-    }
-
-    [Fact]
-    public async Task UpdateUserRolesAsync_WhenBusinessFailure_ReturnsFailureWithDetail()
-    {
-        // Arrange
-        var (client, _) = CreateSut(_ => ProblemResponse(HttpStatusCode.BadRequest, "Uma ou mais roles informadas não existem."));
-
-        // Act
-        var result = await client.UpdateUserRolesAsync(Guid.NewGuid(), new UpdateUserRolesRequest([Guid.NewGuid()]));
-
-        // Assert
-        result.IsFailure.Should().BeTrue();
-        result.Error.Should().Be("Uma ou mais roles informadas não existem.");
-    }
-
-    [Fact]
-    public async Task UpdateUserRolesAsync_WhenTransportFails_ReturnsGeneralFailure()
-    {
-        // Arrange
-        var (client, _) = CreateSut(_ => throw new HttpRequestException("network down"));
-
-        // Act
-        var result = await client.UpdateUserRolesAsync(Guid.NewGuid(), new UpdateUserRolesRequest([]));
-
-        // Assert
-        result.IsFailure.Should().BeTrue();
-        result.Error.Should().Be("Não foi possível salvar os perfis do usuário. Tente novamente.");
     }
 }

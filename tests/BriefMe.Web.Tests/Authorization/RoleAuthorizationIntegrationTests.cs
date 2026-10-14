@@ -1,6 +1,5 @@
+using BriefMe.Domain.Enums;
 using System.Security.Claims;
-using BriefMe.Domain.Constants;
-using BriefMe.Web.Authorization;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,8 +15,6 @@ public class RoleAuthorizationIntegrationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddAuthorization();
-        services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-        services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
         _authorizationService = services.BuildServiceProvider().GetRequiredService<IAuthorizationService>();
     }
@@ -29,8 +26,8 @@ public class RoleAuthorizationIntegrationTests
     public async Task AuthorizeAsync_WhenDesignerAccessesAdministradorRestrictedResource_Fails()
     {
         // Arrange
-        var user = CreateUser(Roles.Designer);
-        var policy = new AuthorizationPolicyBuilder().RequireRole(Roles.Administrador).Build();
+        var user = CreateUser(nameof(UserRole.Designer));
+        var policy = new AuthorizationPolicyBuilder().RequireRole(nameof(UserRole.Admin)).Build();
 
         // Act
         var result = await _authorizationService.AuthorizeAsync(user, resource: null, policy);
@@ -43,8 +40,8 @@ public class RoleAuthorizationIntegrationTests
     public async Task AuthorizeAsync_WhenAdministradorAccessesAdministradorRestrictedResource_Succeeds()
     {
         // Arrange
-        var user = CreateUser(Roles.Administrador);
-        var policy = new AuthorizationPolicyBuilder().RequireRole(Roles.Administrador).Build();
+        var user = CreateUser(nameof(UserRole.Admin));
+        var policy = new AuthorizationPolicyBuilder().RequireRole(nameof(UserRole.Admin)).Build();
 
         // Act
         var result = await _authorizationService.AuthorizeAsync(user, resource: null, policy);

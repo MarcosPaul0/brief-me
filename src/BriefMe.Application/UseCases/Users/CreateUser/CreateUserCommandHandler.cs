@@ -12,7 +12,6 @@ namespace BriefMe.Application.UseCases.Users.CreateUser;
 
 public sealed class CreateUserCommandHandler(
     IUserRepository userRepository,
-    IRoleRepository roleRepository,
     IPasswordHasher passwordHasher,
     IUnitOfWork unitOfWork) : ICommandHandler<CreateUserCommand, UserDto>
 {
@@ -29,24 +28,12 @@ public sealed class CreateUserCommandHandler(
         if (await userRepository.EmailExistsAsync(emailResult.Value, cancellationToken: cancellationToken))
             return Result.Conflict<UserDto>(UserErrors.DuplicateEmail);
 
-        var distinctRoleIds = request.RoleIds.Distinct().ToList();
-
-        IReadOnlyList<Role> roles = distinctRoleIds.Count == 0
-            ? []
-            : await roleRepository.GetByIdsAsync(distinctRoleIds, cancellationToken);
-
-        if (roles.Count != distinctRoleIds.Count)
-            return Result.Failure<UserDto>(UserErrors.InvalidRoles);
-
         var passwordHash = passwordHasher.Hash(passwordResult.Value.Value);
-        var user = User.Create(request.FullName, emailResult.Value, passwordHash);
-
-        foreach (var role in roles)
-            user.AssignRole(role.Id);
+        var user = User.Create(request.FullName, emailResult.Value, passwordHash, request.Role);
 
         await userRepository.AddAsync(user, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
 
-        return Result.Success(UserDto.FromUserAndRoles(user, roles));
+        return Result.Success(UserDto.FromUser(user));
     }
 }

@@ -7,10 +7,8 @@ using BriefMe.Application.UseCases.Users.DeleteUser;
 using BriefMe.Application.UseCases.Users.GetUserById;
 using BriefMe.Application.UseCases.Users.GetUsersPaged;
 using BriefMe.Application.UseCases.Users.UpdateUser;
-using BriefMe.Application.UseCases.Users.UpdateUserRoles;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
-using BriefMe.Web.Authorization;
 using BriefMe.Web.Contracts.Users;
 using BriefMe.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -21,18 +19,13 @@ namespace BriefMe.Web.Controllers;
 [ApiController]
 [Route("users")]
 [Authorize]
-public sealed class UsersController(
-    ISender sender,
-    IAuthorizationService authorizationService,
-    ICurrentUser currentUser) : ControllerBase
+public sealed class UsersController(ISender sender, ICurrentUser currentUser) : ControllerBase
 {
-    private const string ResetPasswordPermission = "users.reset-password";
-
     [HttpPost]
-    [HasPermission("users.create")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<IActionResult> Create(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        var command = new CreateUserCommand(request.FullName, request.Email, request.Password, request.RoleIds);
+        var command = new CreateUserCommand(request.FullName, request.Email, request.Password, request.Role);
         var result = await sender.Send(command, cancellationToken);
 
         return result.IsSuccess
@@ -41,27 +34,17 @@ public sealed class UsersController(
     }
 
     [HttpPut("{id:guid}")]
-    [HasPermission("users.update")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<IActionResult> Update(Guid id, UpdateUserRequest request, CancellationToken cancellationToken)
     {
-        var command = new UpdateUserCommand(id, request.FullName, request.Email, request.RoleIds);
+        var command = new UpdateUserCommand(id, request.FullName, request.Email, request.Role);
         var result = await sender.Send(command, cancellationToken);
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao atualizar usuário");
     }
 
-    [HttpPut("{id:guid}/roles")]
-    [HasPermission("roles.manage")]
-    public async Task<IActionResult> UpdateRoles(Guid id, UpdateUserRolesRequest request, CancellationToken cancellationToken)
-    {
-        var command = new UpdateUserRolesCommand(id, request.RoleIds);
-        var result = await sender.Send(command, cancellationToken);
-
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao atualizar roles do usuário");
-    }
-
     [HttpDelete("{id:guid}")]
-    [HasPermission("users.delete")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeleteUserCommand(id, GetClientIpAddress());
@@ -71,7 +54,7 @@ public sealed class UsersController(
     }
 
     [HttpPatch("{id:guid}/status")]
-    [HasPermission("users.manage")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<IActionResult> ChangeStatus(Guid id, ChangeUserStatusRequest request, CancellationToken cancellationToken)
     {
         var command = new ChangeUserStatusCommand(id, request.Status, GetClientIpAddress());
@@ -80,16 +63,16 @@ public sealed class UsersController(
         return result.IsSuccess ? NoContent() : result.ToProblem(this, "Falha ao alterar status do usuário");
     }
 
+    /// <summary>
+    /// Every user may change their own password; resetting someone else's is the admin's — the only action
+    /// here not gated on the Admin role alone.
+    /// </summary>
     [HttpPatch("{id:guid}/password")]
     public async Task<IActionResult> ChangePassword(Guid id, ChangePasswordRequest request, CancellationToken cancellationToken)
     {
         var isSelf = Guid.TryParse(currentUser.UserId, out var loggedUserId) && loggedUserId == id;
-        if (!isSelf)
-        {
-            var authorization = await authorizationService.AuthorizeAsync(User, ResetPasswordPermission);
-            if (!authorization.Succeeded)
-                return Forbid();
-        }
+        if (!isSelf && !User.IsInRole(nameof(UserRole.Admin)))
+            return Forbid();
 
         var command = new ChangePasswordCommand(id, request.CurrentPassword, request.NewPassword, GetClientIpAddress());
         var result = await sender.Send(command, cancellationToken);
@@ -98,25 +81,25 @@ public sealed class UsersController(
     }
 
     [HttpGet]
-    [HasPermission("users.view")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<IActionResult> GetPaged(
         [FromQuery] string? search,
         [FromQuery] UserStatus? status,
-        [FromQuery] Guid? roleId,
+        [FromQuery] UserRole? role,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] UserSortField sortField = UserSortField.FullName,
         [FromQuery] bool sortDescending = false,
         CancellationToken cancellationToken = default)
     {
-        var query = new GetUsersPagedQuery(search, status, roleId, page, pageSize, sortField, sortDescending);
+        var query = new GetUsersPagedQuery(search, status, role, page, pageSize, sortField, sortDescending);
         var result = await sender.Send(query, cancellationToken);
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar usuários");
     }
 
     [HttpGet("{id:guid}")]
-    [HasPermission("users.view")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var query = new GetUserByIdQuery(id);

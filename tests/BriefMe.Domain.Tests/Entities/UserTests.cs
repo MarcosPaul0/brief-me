@@ -11,17 +11,71 @@ public class UserTests
     private static Email ValidEmail() => Email.Create("user@empresa.com").Value;
 
     [Fact]
-    public void Create_WhenDataIsValid_CreatesActiveUserWithNoRoles()
+    public void Create_WhenDataIsValid_CreatesActiveUser()
     {
         // Arrange
         var email = Email.Create("user@empresa.com").Value;
 
         // Act
-        var user = User.Create("Maria Silva", email, "hashed-password");
+        var user = User.Create("Maria Silva", email, "hashed-password", UserRole.Requester);
 
         // Assert
         user.Status.Should().Be(UserStatus.Active);
-        user.UserRoles.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Designer)]
+    [InlineData(UserRole.Requester)]
+    public void Create_WhenRoleIsValid_KeepsTheRole(UserRole role)
+    {
+        // Arrange
+        var email = ValidEmail();
+
+        // Act
+        var user = User.Create("Maria Silva", email, "hashed-password", role);
+
+        // Assert
+        user.Role.Should().Be(role);
+    }
+
+    [Fact]
+    public void Create_WhenRoleIsUndefined_ThrowsDomainException()
+    {
+        // Arrange
+        var email = ValidEmail();
+
+        // Act
+        var act = () => User.Create("Maria Silva", email, "hashed-password", (UserRole)99);
+
+        // Assert
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void ChangeRole_WhenRoleIsValid_ReplacesTheRole()
+    {
+        // Arrange
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
+
+        // Act
+        user.ChangeRole(UserRole.Designer);
+
+        // Assert
+        user.Role.Should().Be(UserRole.Designer);
+    }
+
+    [Fact]
+    public void ChangeRole_WhenRoleIsUndefined_ThrowsDomainException()
+    {
+        // Arrange
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
+
+        // Act
+        var act = () => user.ChangeRole((UserRole)99);
+
+        // Assert
+        act.Should().Throw<DomainException>();
     }
 
     [Fact]
@@ -31,7 +85,7 @@ public class UserTests
         var email = ValidEmail();
 
         // Act
-        var user = User.Create("  Maria Silva  ", email, "hashed-password");
+        var user = User.Create("  Maria Silva  ", email, "hashed-password", UserRole.Requester);
 
         // Assert
         user.FullName.Should().Be("Maria Silva");
@@ -47,7 +101,7 @@ public class UserTests
         var email = ValidEmail();
 
         // Act
-        var act = () => User.Create(fullName!, email, "hashed-password");
+        var act = () => User.Create(fullName!, email, "hashed-password", UserRole.Requester);
 
         // Assert
         act.Should().Throw<DomainException>();
@@ -63,26 +117,10 @@ public class UserTests
         var email = ValidEmail();
 
         // Act
-        var act = () => User.Create("Maria Silva", email, passwordHash!);
+        var act = () => User.Create("Maria Silva", email, passwordHash!, UserRole.Requester);
 
         // Assert
         act.Should().Throw<DomainException>();
-    }
-
-    [Fact]
-    public void AssignRole_WhenCalledTwiceWithSameRole_DoesNotDuplicate()
-    {
-        // Arrange
-        var email = Email.Create("user@empresa.com").Value;
-        var user = User.Create("Maria Silva", email, "hashed-password");
-        var roleId = Guid.NewGuid();
-
-        // Act
-        user.AssignRole(roleId);
-        user.AssignRole(roleId);
-
-        // Assert
-        user.UserRoles.Should().ContainSingle();
     }
 
     [Fact]
@@ -90,7 +128,7 @@ public class UserTests
     {
         // Arrange
         var email = Email.Create("user@empresa.com").Value;
-        var user = User.Create("Maria Silva", email, "hashed-password");
+        var user = User.Create("Maria Silva", email, "hashed-password", UserRole.Requester);
 
         // Act
         user.Deactivate();
@@ -104,7 +142,7 @@ public class UserTests
     {
         // Arrange
         var email = Email.Create("user@empresa.com").Value;
-        var user = User.Create("Maria Silva", email, "old-hash");
+        var user = User.Create("Maria Silva", email, "old-hash", UserRole.Requester);
 
         // Act
         user.ChangePassword("new-hash");
@@ -120,7 +158,7 @@ public class UserTests
     public void ChangePassword_WhenNewHashIsNullOrWhitespace_ThrowsDomainException(string? newHash)
     {
         // Arrange
-        var user = User.Create("Maria Silva", ValidEmail(), "old-hash");
+        var user = User.Create("Maria Silva", ValidEmail(), "old-hash", UserRole.Requester);
 
         // Act
         var act = () => user.ChangePassword(newHash!);
@@ -133,7 +171,7 @@ public class UserTests
     public void UpdateProfile_WhenDataIsValid_UpdatesNameAndEmail()
     {
         // Arrange
-        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password");
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
         var newEmail = Email.Create("nova@empresa.com").Value;
 
         // Act
@@ -151,7 +189,7 @@ public class UserTests
     public void UpdateProfile_WhenFullNameIsNullOrWhitespace_ThrowsDomainException(string? fullName)
     {
         // Arrange
-        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password");
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
 
         // Act
         var act = () => user.UpdateProfile(fullName!, ValidEmail());
@@ -164,7 +202,7 @@ public class UserTests
     public void Activate_WhenUserIsInactive_SetsStatusToActive()
     {
         // Arrange
-        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password");
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
         user.Deactivate();
 
         // Act
@@ -178,7 +216,7 @@ public class UserTests
     public void MarkAsDeleted_WhenCalled_SetsSoftDeleteFields()
     {
         // Arrange
-        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password");
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
 
         // Act
         user.MarkAsDeleted("admin@briefme.com");
@@ -187,34 +225,5 @@ public class UserTests
         user.IsDeleted.Should().BeTrue();
         user.DeletedAt.Should().NotBeNull();
         user.DeletedBy.Should().Be("admin@briefme.com");
-    }
-
-    [Fact]
-    public void RemoveRole_WhenRoleWasNotAssigned_DoesNothing()
-    {
-        // Arrange
-        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password");
-
-        // Act
-        user.RemoveRole(Guid.NewGuid());
-
-        // Assert
-        user.UserRoles.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void RemoveRole_WhenRoleWasAssigned_RemovesAssociation()
-    {
-        // Arrange
-        var email = Email.Create("user@empresa.com").Value;
-        var user = User.Create("Maria Silva", email, "hashed-password");
-        var roleId = Guid.NewGuid();
-        user.AssignRole(roleId);
-
-        // Act
-        user.RemoveRole(roleId);
-
-        // Assert
-        user.UserRoles.Should().BeEmpty();
     }
 }

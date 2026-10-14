@@ -1,33 +1,20 @@
 @*
-    Grade de opções de navegação da Home. Cada card se auto-oculta conforme a policy.
+    Grade de opções de navegação da Home. Cada card se auto-oculta conforme o perfil.
 *@
 
 <div class="mt-[30px] grid gap-[20px] sm:grid-cols-2 lg:grid-cols-3">
-    <NavOptionCard Policy="briefings.view-own"
+    <NavOptionCard Role="UserRole.Requester"
                    Href="briefings/meus"
                    Title="Meus briefings"
                    Description="Acompanhe o andamento das suas solicitações de design." />
 
-    <NavOptionCard Policy="briefings.create"
+    <NavOptionCard Role="UserRole.Requester"
                    Href="briefings/novo"
                    Title="Novo briefing"
                    Description="Abra uma nova solicitação para o time de design." />
 
-
-
-
-    <NavOptionCard Policy="users.view"
+    <NavOptionCard Role="UserRole.Admin"
                    Href="usuarios"
                    Title="Usuários"
                    Description="Cadastre, edite e gerencie os usuários do sistema." />
-
-    <NavOptionCard Policy="roles.manage"
-                   Href="perfis"
-                   Title="Perfis"
-                   Description="Gerencie os perfis de acesso e suas permissões." />
-
-    <NavOptionCard Policy="permissions.manage"
-                   Href="permissoes"
-                   Title="Permissões"
-                   Description="Consulte o catálogo de permissões do sistema." />
 </div>

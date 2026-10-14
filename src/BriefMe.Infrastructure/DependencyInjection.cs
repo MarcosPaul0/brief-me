@@ -33,8 +33,6 @@ public static class DependencyInjection
 
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IRoleRepository, RoleRepository>();
-        services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IBriefingRepository, BriefingRepository>();
         // Placeholder category catalog (BRF-013) — immutable seed data, no per-request state, so a singleton.
@@ -42,9 +40,7 @@ public static class DependencyInjection
         services.AddSingleton<ICategoryRepository, SeededCategoryRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        // Startup seeders (USR-046+). Registration order defines execution order in MigrateAndSeedAsync.
-        services.AddScoped<IDataSeeder, PermissionSeeder>();
-        services.AddScoped<IDataSeeder, RoleSeeder>();
+        // Startup seeders. Registration order defines execution order in MigrateAndSeedAsync.
         services.AddScoped<IDataSeeder, AdminUserSeeder>();
 
         return services;

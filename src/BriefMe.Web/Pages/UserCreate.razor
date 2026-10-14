@@ -1,5 +1,5 @@
 @page "/usuarios/novo"
-@attribute [Authorize(Policy = "users.create")]
+@attribute [Authorize(Roles = nameof(UserRole.Admin))]
 @using Microsoft.AspNetCore.Authorization
 
 <PageTitle>Novo usuário</PageTitle>

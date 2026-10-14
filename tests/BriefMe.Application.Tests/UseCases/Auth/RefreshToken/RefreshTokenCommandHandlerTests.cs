@@ -2,6 +2,7 @@ using BriefMe.Application.Abstractions;
 using BriefMe.Application.UseCases.Auth.RefreshToken;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
 using BriefMe.Domain.ValueObjects;
 using FluentAssertions;
@@ -25,7 +26,7 @@ public class RefreshTokenCommandHandlerTests
     }
 
     private static User CreateActiveUser(string fullName = "Ana Silva", string email = "ana@briefme.com") =>
-        User.Create(fullName, Email.Create(email).Value, "hashed-password");
+        User.Create(fullName, Email.Create(email).Value, "hashed-password", UserRole.Requester);
 
     [Fact]
     public async Task Handle_WhenRefreshTokenIsActive_ReturnsSuccessWithNewTokensAndCurrentClaims()
@@ -38,7 +39,7 @@ public class RefreshTokenCommandHandlerTests
 
         _refreshTokenServiceMock.Setup(s => s.RotateAsync(command.RefreshToken, command.IpAddress, default))
             .ReturnsAsync(Result.Success(rotated));
-        _userRepositoryMock.Setup(r => r.GetByIdWithRolesAndPermissionsAsync(user.Id, default)).ReturnsAsync(user);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
         _jwtServiceMock.Setup(j => j.GenerateAccessToken(user)).Returns(("access-token", expiresAt));
 
         // Act
@@ -67,7 +68,7 @@ public class RefreshTokenCommandHandlerTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be("Refresh token inválido ou expirado.");
-        _userRepositoryMock.Verify(r => r.GetByIdWithRolesAndPermissionsAsync(It.IsAny<Guid>(), default), Times.Never);
+        _userRepositoryMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), default), Times.Never);
         _jwtServiceMock.Verify(j => j.GenerateAccessToken(It.IsAny<User>()), Times.Never);
     }
 
@@ -82,7 +83,7 @@ public class RefreshTokenCommandHandlerTests
 
         _refreshTokenServiceMock.Setup(s => s.RotateAsync(command.RefreshToken, command.IpAddress, default))
             .ReturnsAsync(Result.Success(rotated));
-        _userRepositoryMock.Setup(r => r.GetByIdWithRolesAndPermissionsAsync(user.Id, default)).ReturnsAsync(user);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
 
         // Act
         var result = await _handler.Handle(command, default);
@@ -103,7 +104,7 @@ public class RefreshTokenCommandHandlerTests
 
         _refreshTokenServiceMock.Setup(s => s.RotateAsync(command.RefreshToken, command.IpAddress, default))
             .ReturnsAsync(Result.Success(rotated));
-        _userRepositoryMock.Setup(r => r.GetByIdWithRolesAndPermissionsAsync(userId, default)).ReturnsAsync((User?)null);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(userId, default)).ReturnsAsync((User?)null);
 
         // Act
         var result = await _handler.Handle(command, default);

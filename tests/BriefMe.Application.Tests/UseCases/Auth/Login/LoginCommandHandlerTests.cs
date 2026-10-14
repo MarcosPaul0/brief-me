@@ -1,6 +1,7 @@
 using BriefMe.Application.Abstractions;
 using BriefMe.Application.UseCases.Auth.Login;
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
 using BriefMe.Domain.ValueObjects;
 using FluentAssertions;
@@ -27,7 +28,7 @@ public class LoginCommandHandlerTests
 
     private static User CreateActiveUser(string fullName = "Ana Silva", string email = "ana@briefme.com", string passwordHash = "hashed-password")
     {
-        return User.Create(fullName, Email.Create(email).Value, passwordHash);
+        return User.Create(fullName, Email.Create(email).Value, passwordHash, UserRole.Requester);
     }
 
     [Fact]
