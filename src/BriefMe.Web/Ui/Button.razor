@@ -1,0 +1,88 @@
+@*
+    The app's action control (DESIGN-sap.md button-primary / button-outline). Renders an <a> when Href is set,
+    otherwise a <button>. Loading implies disabled and shows a spinner before the label.
+*@
+@if (Href is not null)
+{
+    <a href="@(IsDisabled ? null : Href)" aria-disabled="@(IsDisabled ? "true" : null)"
+       class="@ClassNames.Join(Classes, IsDisabled ? "pointer-events-none" : null)" @attributes="AdditionalAttributes">
+        @Content
+    </a>
+}
+else
+{
+    <button type="@Type" disabled="@IsDisabled" @onclick="OnClick" class="@Classes" @attributes="AdditionalAttributes">
+        @Content
+    </button>
+}
+
+@code {
+    [Parameter]
+    public ButtonVariant Variant { get; set; }
+
+    [Parameter]
+    public ButtonSize Size { get; set; }
+
+    /// <summary>The <c>type</c> attribute: <c>button</c> unless the button submits its form.</summary>
+    [Parameter]
+    public string Type { get; set; } = "button";
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public string? Href { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsDisabled => Disabled || Loading;
+
+    private RenderFragment Content => __builder =>
+    {
+        if (Loading)
+        {
+            <Spinner />
+        }
+        @ChildContent
+    };
+
+    private string Classes => ClassNames.Join(
+        "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors " +
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary " +
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        VariantClasses,
+        SizeClasses,
+        Class);
+
+    private string VariantClasses => Variant switch
+    {
+        ButtonVariant.Secondary => "bg-chrome text-ink-body hover:bg-band",
+        ButtonVariant.Outline => "border border-hairline/60 bg-canvas text-primary-deep hover:bg-band-blue",
+        ButtonVariant.Ghost => "text-ink-list hover:bg-chrome hover:text-ink",
+        ButtonVariant.Link => "text-primary underline-offset-4 hover:underline",
+        ButtonVariant.Destructive => "bg-negative text-on-primary hover:bg-negative/90",
+        _ => "bg-primary text-on-primary hover:bg-primary-deep"
+    };
+
+    private string SizeClasses => (Variant, Size) switch
+    {
+        // A link-styled button keeps the text's own box so it lines up with surrounding copy.
+        (ButtonVariant.Link, ButtonSize.Sm) => "text-caption",
+        (ButtonVariant.Link, _) => "text-link",
+        (_, ButtonSize.Sm) => "h-8 px-3 text-caption",
+        _ => "h-11 px-3.5 text-button"
+    };
+}

@@ -1,0 +1,13 @@
+@* Centred placeholder while a region loads. *@
+<div class="@ClassNames.Join("flex items-center justify-center gap-3 py-24 text-list text-ink-meta", Class)">
+    <Spinner Class="text-primary" />
+    <span>@Text</span>
+</div>
+
+@code {
+    [Parameter]
+    public string Text { get; set; } = "Carregando...";
+
+    [Parameter]
+    public string? Class { get; set; }
+}

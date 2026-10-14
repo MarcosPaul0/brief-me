@@ -1,0 +1,13 @@
+@* meta-note: supporting copy under a CardTitle. *@
+<p class="@ClassNames.Join("text-caption text-ink-meta", Class)" @attributes="AdditionalAttributes">@ChildContent</p>
+
+@code {
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+}

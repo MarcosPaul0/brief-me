@@ -1,0 +1,33 @@
+@* section-heading + its meta line, with optional actions aligned to the right. *@
+<div class="@ClassNames.Join("flex flex-wrap items-start justify-between gap-4", Class)">
+    <div class="min-w-0">
+        <h1 class="text-section-title font-medium text-ink">@Title</h1>
+        @if (Description is not null)
+        {
+            <p class="mt-2 text-link text-ink-meta">@Description</p>
+        }
+        @Meta
+    </div>
+    @if (Actions is not null)
+    {
+        <div class="flex flex-wrap items-center gap-2">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    /// <summary>Extra content under the title when a plain description is not enough.</summary>
+    [Parameter]
+    public RenderFragment? Meta { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

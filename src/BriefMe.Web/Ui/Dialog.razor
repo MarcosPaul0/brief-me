@@ -1,0 +1,58 @@
+@*
+    Modal dialog (ex-modal-card). Nothing renders while closed. Backdrop click and Esc ask the owner to close via
+    OnClose unless Dismissible is false (e.g. while the confirmed action runs); the owner flips Open.
+*@
+@if (Open)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" @onclick="DismissAsync">
+        <div role="dialog" aria-modal="true" aria-labelledby="@_titleId" aria-describedby="@(Description is null ? null : _descriptionId)"
+             tabindex="-1" @onkeydown="OnKeyDownAsync" @onclick:stopPropagation="true"
+             class="@ClassNames.Join("w-full max-w-[440px] rounded-lg bg-canvas p-8 focus:outline-none", Class)">
+            <h2 id="@_titleId" class="text-subhead font-medium text-ink">@Title</h2>
+            @if (Description is not null)
+            {
+                <p id="@_descriptionId" class="mt-2 text-list text-ink-list">@Description</p>
+            }
+
+            @ChildContent
+
+            @if (Footer is not null)
+            {
+                <div class="mt-6 flex flex-wrap items-center justify-end gap-2">@Footer</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string _titleId = $"dialog-title-{Guid.NewGuid():N}";
+    private readonly string _descriptionId = $"dialog-description-{Guid.NewGuid():N}";
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public bool Dismissible { get; set; } = true;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Footer { get; set; }
+
+    private Task DismissAsync() => Dismissible ? OnClose.InvokeAsync() : Task.CompletedTask;
+
+    private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? DismissAsync() : Task.CompletedTask;
+}

@@ -1,0 +1,38 @@
+@*
+    Message strip for a form or action outcome. Danger and Warning interrupt (role=alert); Info and Success are
+    announced politely (role=status).
+*@
+<div role="@(Variant is AlertVariant.Danger or AlertVariant.Warning ? "alert" : "status")"
+     class="@ClassNames.Join("rounded-md border-l-4 px-4 py-3 text-caption", VariantClasses, Class)"
+     @attributes="AdditionalAttributes">
+    @if (Title is not null)
+    {
+        <p class="font-medium">@Title</p>
+    }
+    <div class="@(Title is null ? null : "mt-1 text-ink-body")">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter]
+    public AlertVariant Variant { get; set; } = AlertVariant.Danger;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string VariantClasses => Variant switch
+    {
+        AlertVariant.Info => "border-primary bg-band-blue text-primary-deep",
+        AlertVariant.Success => "border-positive bg-positive-surface text-positive",
+        AlertVariant.Warning => "border-critical bg-critical-surface text-critical",
+        _ => "border-negative bg-negative-surface text-negative"
+    };
+}

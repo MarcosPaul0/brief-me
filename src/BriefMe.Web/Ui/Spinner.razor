@@ -1,0 +1,8 @@
+@* Indeterminate progress ring; inherits the text colour, so it reads on any fill. *@
+<span role="status" aria-label="Carregando"
+      class="@ClassNames.Join("inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent", Class)"></span>
+
+@code {
+    [Parameter]
+    public string? Class { get; set; }
+}

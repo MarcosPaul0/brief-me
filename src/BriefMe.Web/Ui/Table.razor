@@ -1,0 +1,29 @@
+@*
+    Data table chrome (ex-data-table-cell): horizontal scroll wrapper, caption-sized header, hairline row rules.
+    Header takes TableHead cells; ChildContent takes TableRow rows. Class goes on the <table> (e.g. a min width).
+*@
+<div class="overflow-x-auto">
+    <table class="@ClassNames.Join("w-full border-collapse text-left", Class)" @attributes="AdditionalAttributes">
+        @if (Header is not null)
+        {
+            <thead>
+                <tr class="border-b border-band">@Header</tr>
+            </thead>
+        }
+        <tbody>@ChildContent</tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+}

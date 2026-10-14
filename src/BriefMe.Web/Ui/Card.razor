@@ -1,0 +1,18 @@
+@*
+    Content surface on the canvas. Flat — no shadow (DESIGN-sap.md: "don't elevate a card") — with a band-grey
+    rule so a white card still reads on a white page. Padding is the caller's: pass it in Class.
+*@
+<div class="@ClassNames.Join("rounded-lg border border-band bg-canvas", Class)" @attributes="AdditionalAttributes">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+}

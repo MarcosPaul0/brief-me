@@ -1,0 +1,18 @@
+@* Multi-line field outside an EditForm. Inside an EditForm use FormTextarea. *@
+<textarea value="@Value" @onchange="OnChangeAsync" class="@ClassNames.Join(UiClasses.Control, "min-h-20", Class)" @attributes="AdditionalAttributes"></textarea>
+
+@code {
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private Task OnChangeAsync(ChangeEventArgs args) => ValueChanged.InvokeAsync(args.Value?.ToString());
+}

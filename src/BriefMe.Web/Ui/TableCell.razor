@@ -1,0 +1,16 @@
+@* list-item cell. Primary marks the row's identifying column (title, name) in ink. *@
+<td class="@ClassNames.Join("px-4 py-3 text-list", Primary ? "font-medium text-ink" : "font-[350] text-ink-list", Class)" @attributes="AdditionalAttributes">@ChildContent</td>
+
+@code {
+    [Parameter]
+    public bool Primary { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+}
