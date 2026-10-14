@@ -1,4 +1,5 @@
 using BriefMe.Application.UseCases.Categories.GetActiveCategories;
+using BriefMe.Domain.Entities;
 using BriefMe.Domain.Repositories;
 using FluentAssertions;
 using Moq;
@@ -19,8 +20,8 @@ public class GetActiveCategoriesQueryHandlerTests
     public async Task Handle_WhenCategoriesExist_MapsToDtos()
     {
         // Arrange
-        var first = new CategoryInfo(Guid.NewGuid(), "Campanha");
-        var second = new CategoryInfo(Guid.NewGuid(), "Evento");
+        var first = Category.Create("Campanha");
+        var second = Category.Create("Evento");
         _categoryRepositoryMock
             .Setup(r => r.GetActiveAsync(default))
             .ReturnsAsync([first, second]);

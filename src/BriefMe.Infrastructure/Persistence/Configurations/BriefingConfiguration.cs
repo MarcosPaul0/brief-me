@@ -52,8 +52,10 @@ public class BriefingConfiguration : IEntityTypeConfiguration<Briefing>
             .HasForeignKey(b => b.RequesterId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Category (RF040): logical FK. The physical constraint arrives with BRF-059 (Categories table).
-        // For now just the index, without HasOne, to keep the migration self-contained.
+        builder.HasOne<Category>()
+            .WithMany()
+            .HasForeignKey(b => b.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(b => b.RequesterId).HasDatabaseName("IX_Briefings_RequesterId");
         builder.HasIndex(b => b.Status).HasDatabaseName("IX_Briefings_Status");

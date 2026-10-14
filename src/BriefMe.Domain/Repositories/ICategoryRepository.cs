@@ -1,29 +1,24 @@
+using BriefMe.Domain.Entities;
+
 namespace BriefMe.Domain.Repositories;
 
-/// <summary>
-/// A briefing category as needed by read scenarios (BRF-013 picker). A lightweight read projection, not the
-/// full <c>Category</c> aggregate — that arrives with BRF-059/BRF-060.
-/// </summary>
-public sealed record CategoryInfo(Guid Id, string Name);
-
-/// <summary>
-/// Access to briefing categories (RF040). Defined in <c>Domain</c> per the project's Repository pattern.
-/// BRF-006 needs only the active-category existence check to validate the briefing's mandatory association;
-/// BRF-013 adds <see cref="GetActiveAsync"/> to feed the create form's category picker. BRF-059/BRF-060
-/// introduce the <c>Category</c> aggregate and expand this interface (inheriting <see cref="IRepository{T}"/>)
-/// with full CRUD; BRF-062 starts distinguishing "not found" from "inactive".
-/// </summary>
-public interface ICategoryRepository
+public interface ICategoryRepository : IRepository<Category>
 {
-    /// <summary>
-    /// Indicates whether a category with the given id exists and is active (RF040). Returns <c>false</c>
-    /// for both a non-existent and an inactive category.
-    /// </summary>
+    /// <summary>Every category, active or not, ordered by name — the admin's list.</summary>
+    Task<IReadOnlyList<Category>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>The active categories ordered by name — what a requester can pick for a new briefing.</summary>
+    Task<IReadOnlyList<Category>> GetActiveAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Whether a category with this id exists and is active. False for both a missing and an inactive one.</summary>
     Task<bool> ExistsActiveAsync(Guid categoryId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns the active categories a requester can pick when opening a briefing (RF040, BRF-013), ordered
-    /// by name. Inactive categories are excluded so they cannot back new briefings.
+    /// Whether another category already uses <paramref name="name"/>, compared case-insensitively after
+    /// trimming. <paramref name="ignoreId"/> excludes the category being renamed.
     /// </summary>
-    Task<IReadOnlyList<CategoryInfo>> GetActiveAsync(CancellationToken cancellationToken = default);
+    Task<bool> NameExistsAsync(string name, Guid? ignoreId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>The categories whose ids are listed, in no particular order; unknown ids are skipped.</summary>
+    Task<IReadOnlyList<Category>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default);
 }

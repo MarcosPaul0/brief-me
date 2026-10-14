@@ -467,6 +467,9 @@
   .mt-5 {
     margin-top: calc(var(--spacing) * 5);
   }
+  .mt-\[12px\] {
+    margin-top: 12px;
+  }
   .mt-\[20px\] {
     margin-top: 20px;
   }
@@ -596,6 +599,9 @@
   .max-w-\[560px\] {
     max-width: 560px;
   }
+  .max-w-\[900px\] {
+    max-width: 900px;
+  }
   .max-w-\[1100px\] {
     max-width: 1100px;
   }
@@ -613,6 +619,9 @@
   }
   .flex-1 {
     flex: 1;
+  }
+  .flex-\[2\] {
+    flex: 2;
   }
   .flex-shrink {
     flex-shrink: 1;
@@ -968,6 +977,9 @@
   .py-8 {
     padding-block: calc(var(--spacing) * 8);
   }
+  .py-16 {
+    padding-block: calc(var(--spacing) * 16);
+  }
   .py-24 {
     padding-block: calc(var(--spacing) * 24);
   }
@@ -1287,6 +1299,13 @@
     &:hover {
       @media (hover: hover) {
         background-color: #262626;
+      }
+    }
+  }
+  .hover\:text-white {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-white);
       }
     }
   }

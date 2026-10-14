@@ -37,4 +37,34 @@ internal static class ApiClientExtensions
             return Result.Failure<TResult>(fallbackMessage);
         }
     }
+
+    /// <summary>
+    /// Shared write path: sends whatever <paramref name="send"/> builds, reads the <typeparamref name="T"/>
+    /// the API answers with, and maps failures exactly as <see cref="GetResultAsync{TResult, TPayload}"/> does.
+    /// </summary>
+    public static async Task<Result<T>> SendForResultAsync<T>(
+        this AuthenticatedApiClient apiClient,
+        Func<AuthenticatedApiClient, Task<HttpResponseMessage>> send,
+        string fallbackMessage,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        try
+        {
+            using var response = await send(apiClient);
+
+            if (!response.IsSuccessStatusCode)
+                return await ApiProblemMapper.MapFailureAsync<T>(response, fallbackMessage, cancellationToken: cancellationToken);
+
+            var payload = await response.Content.ReadFromJsonAsync<T>(ApiProblemMapper.JsonOptions, cancellationToken);
+
+            return payload is null
+                ? Result.Failure<T>(fallbackMessage)
+                : Result.Success(payload);
+        }
+        catch (HttpRequestException)
+        {
+            return Result.Failure<T>(fallbackMessage);
+        }
+    }
 }

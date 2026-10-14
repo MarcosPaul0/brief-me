@@ -76,7 +76,7 @@ public sealed class BriefingsApiClient : IBriefingsApiClient
     {
         try
         {
-            using var response = await _api.GetAsync("categories", cancellationToken);
+            using var response = await _api.GetAsync("categories/active", cancellationToken);
 
             if (!response.IsSuccessStatusCode)
                 return [];

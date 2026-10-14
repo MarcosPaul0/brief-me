@@ -1,12 +1,16 @@
 using BriefMe.Application.Abstractions.Messaging;
 using BriefMe.Application.Abstractions;
 using BriefMe.Application.Common.Dtos;
+using BriefMe.Application.UseCases.Categories.ChangeCategoryStatus;
+using BriefMe.Application.UseCases.Categories.CreateCategory;
 using BriefMe.Application.UseCases.Categories.GetActiveCategories;
+using BriefMe.Application.UseCases.Categories.GetCategories;
 using BriefMe.Application.UseCases.Categories;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Enums;
 using BriefMe.Infrastructure.Auth;
 using BriefMe.Web.Auth;
+using BriefMe.Web.Contracts.Categories;
 using BriefMe.Web.Controllers;
 using BriefMe.Web.Extensions;
 using FluentAssertions;
@@ -104,7 +108,7 @@ public class CategoriesControllerTests
         Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
-        var response = await client.GetAsync("/categories");
+        var response = await client.GetAsync("/categories/active");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -123,10 +127,112 @@ public class CategoriesControllerTests
         Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
-        var response = await client.GetAsync("/categories");
+        var response = await client.GetAsync("/categories/active");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         senderMock.Verify(s => s.Send(It.IsAny<GetActiveCategoriesQuery>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetAll_WhenCallerIsAdmin_ReturnsOkWithEveryCategory()
+    {
+        // Arrange
+        IReadOnlyList<CategoryDto> categories = [new(Guid.NewGuid(), "Campanha", null, true), new(Guid.NewGuid(), "Evento", null, false)];
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetCategoriesQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(categories));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
+
+        // Act
+        var response = await client.GetAsync("/categories");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<List<CategoryDto>>();
+        body!.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(nameof(UserRole.Requester))]
+    [InlineData(nameof(UserRole.Designer))]
+    public async Task Create_WhenCallerIsNotAdmin_ReturnsForbidden(string role)
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [role]));
+
+        // Act
+        var response = await client.PostAsJsonAsync("/categories", new CreateCategoryRequest("Vídeo", null));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Create_WhenCallerIsAdmin_ReturnsCreated()
+    {
+        // Arrange
+        var created = new CategoryDto(Guid.NewGuid(), "Vídeo", null, true);
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.Is<CreateCategoryCommand>(c => c.Name == "Vídeo"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(created));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
+
+        // Act
+        var response = await client.PostAsJsonAsync("/categories", new CreateCategoryRequest("Vídeo", null));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
+    public async Task Create_WhenNameIsDuplicated_ReturnsConflictProblem()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<CreateCategoryCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Conflict<CategoryDto>("duplicated"));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
+
+        // Act
+        var response = await client.PostAsJsonAsync("/categories", new CreateCategoryRequest("Evento", null));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task ChangeStatus_WhenCallerIsAdmin_ForwardsTheFlag()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<ChangeCategoryStatusCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new CategoryDto(id, "Evento", null, false)));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
+
+        // Act
+        await client.PatchAsJsonAsync($"/categories/{id}/status", new ChangeCategoryStatusRequest(false));
+
+        // Assert
+        senderMock.Verify(s => s.Send(
+            It.Is<ChangeCategoryStatusCommand>(c => c.CategoryId == id && !c.IsActive),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

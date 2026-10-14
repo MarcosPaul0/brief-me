@@ -53,6 +53,9 @@ public sealed class AuthenticatedApiClient
     public Task<HttpResponseMessage> PutAsJsonAsync<TValue>(string requestUri, TValue value, JsonSerializerOptions options, CancellationToken cancellationToken) =>
         SendAsync(() => new HttpRequestMessage(HttpMethod.Put, requestUri) { Content = JsonContent.Create(value, options: options) }, cancellationToken);
 
+    public Task<HttpResponseMessage> PatchAsJsonAsync<TValue>(string requestUri, TValue value, JsonSerializerOptions options, CancellationToken cancellationToken) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Patch, requestUri) { Content = JsonContent.Create(value, options: options) }, cancellationToken);
+
     // The request is built from a factory so the retry gets a fresh, unsent message (an HttpRequestMessage
     // and its content can only be sent once) — no manual cloning of a consumed request.
     private async Task<HttpResponseMessage> SendAsync(Func<HttpRequestMessage> requestFactory, CancellationToken cancellationToken)

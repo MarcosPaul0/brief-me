@@ -57,6 +57,9 @@ builder.Services.AddScoped<IUsersApiClient, UsersApiClient>();
 // Blazor data client for the briefing create/edit form (BRF-013): same "Api" pipeline.
 builder.Services.AddScoped<IBriefingsApiClient, BriefingsApiClient>();
 
+// Admin category management.
+builder.Services.AddScoped<ICategoriesApiClient, CategoriesApiClient>();
+
 
 
 var app = builder.Build();

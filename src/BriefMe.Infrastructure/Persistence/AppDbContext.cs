@@ -16,6 +16,8 @@ public class AppDbContext : DbContext
 
     public DbSet<Briefing> Briefings => Set<Briefing>();
 
+    public DbSet<Category> Categories => Set<Category>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
