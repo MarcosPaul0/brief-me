@@ -50,6 +50,8 @@ Domain ← Application ← Infrastructure
 - EF Core `DbContext` and configurations
 - Repository implementations
 - External API clients (HTTP, messaging)
+- Object storage (`Storage/MinioFileStorage` behind Application's `IFileStorage`) — MinIO from `docker-compose.yml`
+  locally (`ObjectStorage` config section, console on `:9001`); holds user avatars
 - Migrations
 
 ### Web (`BriefMe.Web`)
