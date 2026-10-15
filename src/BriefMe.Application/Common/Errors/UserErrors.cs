@@ -20,6 +20,8 @@ public static class UserErrors
 
     public const string CannotChangeOwnRole = "Não é permitido alterar o perfil do próprio usuário logado.";
 
+    public const string AvatarNotFound = "Avatar não encontrado.";
+
     public static class Validation
     {
         public const string UserIdRequired = "UserId é obrigatório.";
@@ -41,5 +43,10 @@ public static class UserErrors
         public const string PageOutOfRange = "Page deve ser maior ou igual a 1.";
 
         public static string PageSizeOutOfRange(int maxPageSize) => $"PageSize deve estar entre 1 e {maxPageSize}.";
+
+        public const string AvatarRequired = "Imagem do avatar é obrigatória.";
+
+        public static string AvatarTooLarge(long maxSizeBytes) =>
+            $"A imagem deve ter no máximo {maxSizeBytes / (1024 * 1024)} MB.";
     }
 }
