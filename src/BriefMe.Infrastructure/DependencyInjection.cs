@@ -5,9 +5,11 @@ using BriefMe.Infrastructure.Persistence;
 using BriefMe.Infrastructure.Persistence.Interceptors;
 using BriefMe.Infrastructure.Persistence.Repositories;
 using BriefMe.Infrastructure.Persistence.Seeding;
+using BriefMe.Infrastructure.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Minio;
 
 namespace BriefMe.Infrastructure;
 
@@ -38,9 +40,31 @@ public static class DependencyInjection
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+        services.AddObjectStorage(configuration);
+
         // Startup seeders. Registration order defines execution order in MigrateAndSeedAsync.
         services.AddScoped<IDataSeeder, AdminUserSeeder>();
         services.AddScoped<IDataSeeder, CategorySeeder>();
+
+        return services;
+    }
+
+    private static IServiceCollection AddObjectStorage(this IServiceCollection services, IConfiguration configuration)
+    {
+        var section = configuration.GetSection(ObjectStorageSettings.SectionName);
+        services.Configure<ObjectStorageSettings>(section);
+
+        var settings = section.Get<ObjectStorageSettings>() ?? new ObjectStorageSettings();
+
+        // Built here instead of via AddMinio(), which calls services.BuildServiceProvider() during
+        // registration and would leave a second container behind. Building the client opens no connection,
+        // so the app boots even when MinIO is down.
+        services.AddSingleton<IMinioClient>(_ => new MinioClient()
+            .WithEndpoint(settings.Endpoint)
+            .WithCredentials(settings.AccessKey, settings.SecretKey)
+            .WithSSL(settings.UseSsl)
+            .Build());
+        services.AddSingleton<IFileStorage, MinioFileStorage>();
 
         return services;
     }
