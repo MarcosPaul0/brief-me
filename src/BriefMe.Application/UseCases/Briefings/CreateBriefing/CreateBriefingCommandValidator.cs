@@ -1,4 +1,5 @@
 using BriefMe.Application.Common.Errors;
+using BriefMe.Domain.Entities;
 using FluentValidation;
 
 namespace BriefMe.Application.UseCases.Briefings.CreateBriefing;
@@ -19,5 +20,14 @@ public sealed class CreateBriefingCommandValidator : AbstractValidator<CreateBri
 
         RuleFor(x => x.Priority)
             .IsInEnum().WithMessage(BriefingErrors.Validation.InvalidPriority);
+
+        RuleFor(x => x.Attachments!.Count)
+            .LessThanOrEqualTo(Briefing.MaxAttachments)
+            .WithMessage(BriefingErrors.TooManyAttachments(Briefing.MaxAttachments))
+            .OverridePropertyName(nameof(CreateBriefingCommand.Attachments))
+            .When(x => x.Attachments is not null);
+
+        RuleForEach(x => x.Attachments)
+            .SetValidator(new AttachmentUploadValidator());
     }
 }
