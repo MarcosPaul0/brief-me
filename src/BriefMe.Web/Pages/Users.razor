@@ -83,7 +83,12 @@
                     @foreach (var user in _page.Items)
                     {
                         <TableRow>
-                            <TableCell Primary="true">@user.FullName</TableCell>
+                            <TableCell Primary="true">
+                                <span class="flex items-center gap-3">
+                                    <UserAvatar UserId="user.UserId" Name="@user.FullName" AvatarVersion="user.AvatarVersion" />
+                                    @user.FullName
+                                </span>
+                            </TableCell>
                             <TableCell>@user.Email</TableCell>
                             <TableCell>
                                 @if (user.Status == UserStatus.Active)
