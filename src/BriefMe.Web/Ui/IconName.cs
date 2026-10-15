@@ -34,6 +34,8 @@ public enum IconName
     RotateCcw,
     Save,
     Send,
+    Trash,
+    Upload,
     X,
 
     // Status
