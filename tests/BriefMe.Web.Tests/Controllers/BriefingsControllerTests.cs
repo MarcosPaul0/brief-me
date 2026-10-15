@@ -7,6 +7,7 @@ using BriefMe.Application.UseCases.Briefings.ClaimBriefing;
 using BriefMe.Application.UseCases.Briefings.CreateBriefing;
 using BriefMe.Application.UseCases.Briefings.DeliverBriefing;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
+using BriefMe.Application.UseCases.Briefings.GetBriefingAttachmentContent;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
 using BriefMe.Application.UseCases.Briefings.GetBriefingQueue;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
@@ -639,5 +640,90 @@ public class BriefingsControllerTests
             It.Is<DeliverBriefingCommand>(c => c.BriefingId == briefingId && c.DeliveryNote == "https://files.example/v1"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
-}
 
+    private static Mock<ISender> SenderReturningAttachment(byte[] bytes, string contentType = "video/mp4", string fileName = "clipe de referência.mp4")
+    {
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetBriefingAttachmentContentQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => Result.Success(new AttachmentFileDto(new MemoryStream(bytes), contentType, fileName)));
+        return senderMock;
+    }
+
+    [Fact]
+    public async Task GetAttachmentContent_WhenTokenIsAcceptedWithoutBearer_StreamsInlineWithSafeHeaders()
+    {
+        // Arrange
+        var senderMock = SenderReturningAttachment([1, 2, 3, 4]);
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/briefings/{Guid.NewGuid()}/attachments/{Guid.NewGuid()}/content?token=abc");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("video/mp4");
+        response.Content.Headers.ContentDisposition!.DispositionType.Should().Be("inline");
+        response.Content.Headers.ContentDisposition.FileNameStar.Should().Be("clipe de referência.mp4");
+        response.Headers.GetValues("X-Content-Type-Options").Should().Equal("nosniff");
+        response.Headers.CacheControl!.Private.Should().BeTrue();
+        (await response.Content.ReadAsByteArrayAsync()).Should().Equal(1, 2, 3, 4);
+    }
+
+    [Fact]
+    public async Task GetAttachmentContent_WhenRangeIsRequested_ReturnsPartialContent()
+    {
+        // Arrange
+        var senderMock = SenderReturningAttachment([.. Enumerable.Range(0, 100).Select(i => (byte)i)]);
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/briefings/{Guid.NewGuid()}/attachments/{Guid.NewGuid()}/content?token=abc");
+        request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(10, 19);
+
+        // Act
+        var response = await client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.PartialContent);
+        response.Content.Headers.ContentRange!.ToString().Should().Be("bytes 10-19/100");
+        (await response.Content.ReadAsByteArrayAsync()).Should().Equal(Enumerable.Range(10, 10).Select(i => (byte)i));
+    }
+
+    [Fact]
+    public async Task GetAttachmentContent_WhenQueryAnswersNotFound_ReturnsNotFound()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetBriefingAttachmentContentQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.NotFound<AttachmentFileDto>("Attachment not found."));
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/briefings/{Guid.NewGuid()}/attachments/{Guid.NewGuid()}/content?token=forged");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetAttachmentContent_WhenCalled_ForwardsRouteIdsAndToken()
+    {
+        // Arrange
+        GetBriefingAttachmentContentQuery? captured = null;
+        var senderMock = SenderReturningAttachment([1]);
+        senderMock.Setup(s => s.Send(It.IsAny<GetBriefingAttachmentContentQuery>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<AttachmentFileDto>>, CancellationToken>((query, _) => captured = (GetBriefingAttachmentContentQuery)query)
+            .ReturnsAsync(Result.Success(new AttachmentFileDto(new MemoryStream([1]), "application/pdf", "a.pdf")));
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        var briefingId = Guid.NewGuid();
+        var attachmentId = Guid.NewGuid();
+
+        // Act
+        await client.GetAsync($"/briefings/{briefingId}/attachments/{attachmentId}/content?token=a.b-c_d");
+
+        // Assert
+        captured.Should().Be(new GetBriefingAttachmentContentQuery(briefingId, attachmentId, "a.b-c_d"));
+    }
+}

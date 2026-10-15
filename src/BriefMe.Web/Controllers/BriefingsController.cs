@@ -6,6 +6,7 @@ using BriefMe.Application.UseCases.Briefings.ClaimBriefing;
 using BriefMe.Application.UseCases.Briefings.CreateBriefing;
 using BriefMe.Application.UseCases.Briefings.DeliverBriefing;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
+using BriefMe.Application.UseCases.Briefings.GetBriefingAttachmentContent;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
 using BriefMe.Application.UseCases.Briefings.GetBriefingQueue;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByDesigner;
@@ -19,6 +20,7 @@ using BriefMe.Web.Contracts.Briefings;
 using BriefMe.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 
 namespace BriefMe.Web.Controllers;
 
@@ -130,6 +132,31 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
         var result = await sender.Send(new GetBriefingByIdQuery(id), cancellationToken);
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao carregar briefing");
+    }
+
+    /// <summary>
+    /// Attachment bytes for a media element (ATT-18). Anonymous because <c>&lt;img&gt;</c>, <c>&lt;video&gt;</c> and
+    /// <c>&lt;iframe&gt;</c> send no bearer token: the signed <paramref name="token"/> from <c>GET /briefings/{id}</c>
+    /// is the authorization. Served inline under the detected type with <c>nosniff</c>, and with range support
+    /// so video and audio can seek.
+    /// </summary>
+    [HttpGet("{id:guid}/attachments/{attachmentId:guid}/content")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAttachmentContent(Guid id, Guid attachmentId, [FromQuery] string? token, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetBriefingAttachmentContentQuery(id, attachmentId, token), cancellationToken);
+        if (result.IsFailure)
+            return result.ToProblem(this, "Anexo indisponível");
+
+        // Private: the URL carries a credential. The token lives 15 minutes, so caching longer buys nothing.
+        Response.Headers.CacheControl = "private, max-age=900";
+        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline")
+        {
+            FileNameStar = result.Value.FileName
+        }.ToString();
+
+        return File(result.Value.Content, result.Value.ContentType, enableRangeProcessing: true);
     }
 
     [HttpGet]
