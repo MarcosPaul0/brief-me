@@ -9,7 +9,7 @@
 @inject AuthSessionStore SessionStore
 @inject NavigationManager NavigationManager
 
-<PageContainer Width="PageWidth.Sm">
+<PageContainer>
     <PageHeader Title="@Title" Description="@Subtitle" />
 
     <div class="mt-8">
@@ -31,15 +31,15 @@
         {
             <Card>
                 <EditForm EditContext="_editContext" FormName="briefingEditor" OnValidSubmit="HandleValidSubmitAsync"
-                          class="flex flex-col gap-4 p-6 sm:p-8">
+                          class="grid gap-x-6 gap-y-5 p-6 sm:p-8 md:grid-cols-2">
                     <DataAnnotationsValidator />
 
                     @if (_generalError is not null)
                     {
-                        <Alert>@_generalError</Alert>
+                        <Alert Class="md:col-span-2">@_generalError</Alert>
                     }
 
-                    <FormField Label="Título" For="title">
+                    <FormField Label="Título" For="title" Class="md:col-span-2">
                         <FormInput id="title" @bind-Value="_model.Title" disabled="@_isSubmitting" />
                         <FormMessage For="() => _model.Title" />
                     </FormField>
@@ -81,11 +81,11 @@
                         <FormMessage For="() => _model.Priority" />
                     </FormField>
 
-                    <FormField Label="Objetivo" For="objective">
+                    <FormField Label="Objetivo" For="objective" Class="md:col-span-2">
                         <FormTextarea id="objective" @bind-Value="_model.Objective" rows="3" disabled="@_isSubmitting" />
                     </FormField>
 
-                    <FormField Label="Descrição" For="description">
+                    <FormField Label="Descrição" For="description" Class="md:col-span-2">
                         <FormTextarea id="description" @bind-Value="_model.Description" rows="4" disabled="@_isSubmitting" />
                     </FormField>
 
@@ -97,7 +97,7 @@
                         <FormDateInput id="deliveryDate" TValue="DateOnly?" @bind-Value="_model.DesiredDeliveryDate" disabled="@_isSubmitting" />
                     </FormField>
 
-                    <div class="mt-2 flex flex-wrap items-center justify-end gap-2">
+                    <div class="mt-2 flex flex-wrap items-center justify-end gap-2 md:col-span-2">
                         <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="NavigateAway" Disabled="_isSubmitting">Cancelar</Button>
                         <Button Type="submit" Variant="ButtonVariant.Outline" Icon="IconName.Save" OnClick="() => _pendingAction = SubmitAction.SaveDraft"
                                 Disabled="@(_isSubmitting || _categoriesUnavailable)"
