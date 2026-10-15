@@ -97,6 +97,10 @@
                         <FormDateInput id="deliveryDate" TValue="DateOnly?" @bind-Value="_model.DesiredDeliveryDate" disabled="@_isSubmitting" />
                     </FormField>
 
+                    <FormField Label="Anexos" For="attachments" Class="md:col-span-2">
+                        <AttachmentPicker @ref="_attachmentPicker" Existing="_existingAttachments" BriefingId="BriefingId" Disabled="_isSubmitting" />
+                    </FormField>
+
                     <div class="mt-2 flex flex-wrap items-center justify-end gap-2 md:col-span-2">
                         <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="NavigateAway" Disabled="_isSubmitting">Cancelar</Button>
                         <Button Type="submit" Variant="ButtonVariant.Outline" Icon="IconName.Save" OnClick="() => _pendingAction = SubmitAction.SaveDraft"
@@ -151,6 +155,8 @@
     private SubmitAction _pendingAction = SubmitAction.SaveDraft;
 
     private IReadOnlyList<CategoryListItemDto> _categories = [];
+    private IReadOnlyList<BriefingAttachmentDto> _existingAttachments = [];
+    private AttachmentPicker? _attachmentPicker;
     private string? _currentCategoryName;
 
     private BriefingFormModel _model = new();
@@ -191,6 +197,7 @@
             _model.RequestingArea = briefing.RequestingArea;
             _model.DesiredDeliveryDate = briefing.DesiredDeliveryDate;
             _currentCategoryName = _categories.FirstOrDefault(c => c.Id == briefing.CategoryId)?.Name;
+            _existingAttachments = briefing.Attachments;
         }
         else
         {
@@ -217,6 +224,9 @@
         _messageStore.Clear();
         _isSubmitting = true;
 
+        var newAttachments = _attachmentPicker?.Queued ?? [];
+        var removedAttachmentIds = _attachmentPicker?.RemovedIds ?? [];
+
         var save = IsEdit
             ? await BriefingsApi.UpdateBriefingAsync(BriefingId!.Value, new UpdateBriefingRequest(
                 _model.Title,
@@ -224,7 +234,7 @@
                 _model.Description,
                 _model.Objective,
                 _model.RequestingArea,
-                _model.DesiredDeliveryDate))
+                _model.DesiredDeliveryDate), newAttachments, removedAttachmentIds)
             : await BriefingsApi.CreateBriefingAsync(new CreateBriefingRequest(
                 _model.Title,
                 _model.Priority,
@@ -232,7 +242,7 @@
                 _model.Description,
                 _model.Objective,
                 _model.RequestingArea,
-                _model.DesiredDeliveryDate));
+                _model.DesiredDeliveryDate), newAttachments);
 
         if (save.IsFailure)
         {
@@ -246,6 +256,10 @@
             var submit = await BriefingsApi.SubmitBriefingAsync(save.Value.Id);
             if (submit.IsFailure)
             {
+                // The save already applied the attachment changes; a retry must not upload or remove them again.
+                if (IsEdit)
+                    await RefreshAttachmentsAsync();
+
                 // The draft was persisted; only the submit transition failed. Surface it and keep the form.
                 ApplyFailure(submit);
                 _isSubmitting = false;
@@ -254,6 +268,15 @@
         }
 
         NavigateAway();
+    }
+
+    private async Task RefreshAttachmentsAsync()
+    {
+        _attachmentPicker?.Clear();
+
+        var reloaded = await BriefingsApi.GetBriefingAsync(BriefingId!.Value);
+        if (reloaded.IsSuccess)
+            _existingAttachments = reloaded.Value.Attachments;
     }
 
     private void ApplyFailure(Result result)

@@ -111,6 +111,15 @@
     /// <summary>Existing attachments to drop with the next save.</summary>
     public IReadOnlyList<Guid> RemovedIds => [.. _removedIds];
 
+    /// <summary>Forgets the queue and the removals once a save applied them, so a retry does not resend them.</summary>
+    public void Clear()
+    {
+        _queued.Clear();
+        _removedIds.Clear();
+        _rejections.Clear();
+        StateHasChanged();
+    }
+
     private int RemainingSlots => Math.Max(0, Briefing.MaxAttachments - (Existing.Count - _removedIds.Count) - _queued.Count);
 
     private async Task OnFilesPickedAsync(InputFileChangeEventArgs args)

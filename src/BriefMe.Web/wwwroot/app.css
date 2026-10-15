@@ -9,6 +9,8 @@
     --color-black: #000;
     --color-white: #fff;
     --spacing: 0.25rem;
+    --container-4xl: 56rem;
+    --container-5xl: 64rem;
     --font-weight-semibold: 600;
     --radius-xs: 6px;
     --radius-sm: 8px;
@@ -18,6 +20,7 @@
     --ease-out: cubic-bezier(0, 0, 0.2, 1);
     --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
     --animate-spin: spin 1s linear infinite;
+    --aspect-video: 16 / 9;
     --default-transition-duration: 150ms;
     --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     --default-font-family: var(--font-sans);
@@ -637,6 +640,9 @@
   .table-row {
     display: table-row;
   }
+  .aspect-video {
+    aspect-ratio: var(--aspect-video);
+  }
   .size-4 {
     width: calc(var(--spacing) * 4);
     height: calc(var(--spacing) * 4);
@@ -678,8 +684,14 @@
   .h-100 {
     height: calc(var(--spacing) * 100);
   }
+  .h-\[75vh\] {
+    height: 75vh;
+  }
   .h-auto {
     height: auto;
+  }
+  .max-h-\[75vh\] {
+    max-height: 75vh;
   }
   .min-h-11 {
     min-height: calc(var(--spacing) * 11);
@@ -710,6 +722,12 @@
   }
   .w-full {
     width: 100%;
+  }
+  .max-w-4xl\! {
+    max-width: var(--container-4xl) !important;
+  }
+  .max-w-5xl\! {
+    max-width: var(--container-5xl) !important;
   }
   .max-w-\[220px\] {
     max-width: 220px;
@@ -795,6 +813,9 @@
   .resize {
     resize: both;
   }
+  .list-disc {
+    list-style-type: disc;
+  }
   .flex-col {
     flex-direction: column;
   }
@@ -869,6 +890,20 @@
   }
   .gap-y-5 {
     row-gap: calc(var(--spacing) * 5);
+  }
+  .divide-y {
+    :where(& > :not(:last-child)) {
+      --tw-divide-y-reverse: 0;
+      border-bottom-style: var(--tw-border-style);
+      border-top-style: var(--tw-border-style);
+      border-top-width: calc(1px * var(--tw-divide-y-reverse));
+      border-bottom-width: calc(1px * calc(1 - var(--tw-divide-y-reverse)));
+    }
+  }
+  .divide-hairline {
+    :where(& > :not(:last-child)) {
+      border-color: var(--color-hairline);
+    }
   }
   .truncate {
     overflow: hidden;
@@ -1049,11 +1084,17 @@
   .bg-surface-card {
     background-color: var(--color-surface-card);
   }
+  .bg-surface-dark {
+    background-color: var(--color-surface-dark);
+  }
   .bg-surface-dark\/40 {
     background-color: color-mix(in srgb, #0a1a1a 40%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       background-color: color-mix(in oklab, var(--color-surface-dark) 40%, transparent);
     }
+  }
+  .bg-surface-soft {
+    background-color: var(--color-surface-soft);
   }
   .bg-surface-strong {
     background-color: var(--color-surface-strong);
@@ -1069,6 +1110,9 @@
   }
   .bg-white {
     background-color: var(--color-white);
+  }
+  .object-contain {
+    object-fit: contain;
   }
   .object-cover {
     object-fit: cover;
@@ -1225,6 +1269,9 @@
   }
   .pb-5 {
     padding-bottom: calc(var(--spacing) * 5);
+  }
+  .pl-5 {
+    padding-left: calc(var(--spacing) * 5);
   }
   .text-center {
     text-align: center;
@@ -1691,6 +1738,11 @@
       display: flex;
     }
   }
+  .lg\:grid-cols-3 {
+    @media (width >= 64rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
   .lg\:grid-cols-\[7fr_5fr\] {
     @media (width >= 64rem) {
       grid-template-columns: 7fr 5fr;
@@ -1737,6 +1789,11 @@ html, body {
 @property --tw-skew-y {
   syntax: "*";
   inherits: false;
+}
+@property --tw-divide-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
 }
 @property --tw-border-style {
   syntax: "*";
@@ -1887,6 +1944,7 @@ html, body {
       --tw-rotate-z: initial;
       --tw-skew-x: initial;
       --tw-skew-y: initial;
+      --tw-divide-y-reverse: 0;
       --tw-border-style: solid;
       --tw-font-weight: initial;
       --tw-shadow: 0 0 #0000;
