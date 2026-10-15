@@ -16,6 +16,7 @@ Conventions shared by every primitive:
 | Component | Parameters | Notes |
 | --- | --- | --- |
 | `Button` | `Variant` (`Default`, `Secondary`, `Outline`, `Ghost`, `Link`, `Destructive`), `Size` (`Default` 44px, `Sm`), `Type` (`button`), `Disabled`, `Loading`, `Href`, `Icon`, `OnClick` | `Icon` leads the label. `Loading` disables and swaps the icon for a `Spinner`. `Href` renders an `<a>`. A trailing glyph (e.g. "Próxima ›") goes in `ChildContent`. |
+| `FileButton` | `Variant` (`Outline` default), `Size`, `Accept`, `Disabled`, `Loading`, `Icon`, `OnChange` (`InputFileChangeEventArgs`) | A `Button`-styled `<label>` around a hidden `InputFile`; same classes as `Button` (`ButtonClasses`). Unmatched attributes go to the input. |
 | `Spinner` | `Class` | Inherits the text colour. |
 | `Icon` | `Name` (`IconName`), `Size` (px, default 16), `Label`, `Class` | Lucide line glyph (`IconPaths`, ISC), stroked in `currentColor`. Decorative (`aria-hidden`) unless `Label` is set. New glyph: add to `IconName` + `IconPaths`. |
 
@@ -70,6 +71,16 @@ Two families, like shadcn's `Input` vs `Form*`:
 </Dialog>
 ```
 
+## Identity
+
+| Component | Parameters | Notes |
+| --- | --- | --- |
+| `Avatar` | `Name` (required), `ImageUrl`, `Size` (`Sm` 32px, `Md` 40px, `Lg` 96px), `Class` | Round image; without `ImageUrl`, or when it fails to load, the name's initial (`AvatarInitial.From`) on a brand-tone disc picked from the name. Features build the URL — e.g. `Components/Users/UserAvatar` for users. |
+
+```razor
+<Avatar Name="@user.FullName" ImageUrl="@url" Size="AvatarSize.Lg" />
+```
+
 ## Data
 
 | Component | Parameters | Notes |
@@ -83,7 +94,7 @@ Two families, like shadcn's `Input` vs `Form*`:
 
 | Component | Parameters | Notes |
 | --- | --- | --- |
-| `PageContainer` | `Width` (`Sm` 560, `Md` 760, `Lg` 900, `Xl` 1100) | Canvas ground, gutters, centred column. |
+| `PageContainer` | `Width` (`Sm` 560, `Md` 760, `Lg` 900, `Xl` 1100 — default) | Canvas ground, gutters, centred column. Lists and forms both use the default `Xl` so screens line up; forms lay short fields out in `md:grid-cols-2`. |
 | `PageHeader` | `Title`, `Description`, `Meta`, `Actions` | The page's `h1` (`FocusOnNavigate` targets it). |
 
 ```razor
