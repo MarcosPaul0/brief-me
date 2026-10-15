@@ -422,4 +422,28 @@ public class BriefingRepositoryTests
         await using var verify = CreateContext(databaseName);
         verify.Set<BriefingAttachment>().Select(a => a.FileName).Should().BeEquivalentTo(["b.pdf"]);
     }
+
+    [Fact]
+    public async Task SaveChanges_WhenUpdatedBriefingSwapsAttachments_DeletesRemovedAndInsertsAdded()
+    {
+        // Arrange — same order as EditBriefingCommandHandler: Update, then remove and add.
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "old.pdf", "kept.pdf");
+        var droppedId = seeded.Attachments.Single(a => a.FileName == "old.pdf").Id;
+        await using (var context = CreateContext(databaseName))
+        {
+            var repository = new BriefingRepository(context);
+            var briefing = await repository.GetByIdWithAttachmentsAsync(seeded.Id);
+            repository.Update(briefing!);
+            briefing!.RemoveAttachment(droppedId);
+            briefing.AddAttachment("new.webm", "briefings/new.webm", AttachmentFormat.WebM, 50);
+
+            // Act
+            await context.SaveChangesAsync();
+        }
+
+        // Assert
+        await using var verify = CreateContext(databaseName);
+        verify.Set<BriefingAttachment>().Select(a => a.FileName).Should().BeEquivalentTo(["kept.pdf", "new.webm"]);
+    }
 }

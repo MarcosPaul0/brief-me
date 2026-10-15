@@ -8,6 +8,8 @@ namespace BriefMe.Application.UseCases.Briefings.EditBriefing;
 /// <summary>
 /// Edits a briefing while nobody is working on it (<c>Draft</c> or <c>Submitted</c>), and only for the
 /// requester who owns it. The editor is the authenticated user and is not part of the command.
+/// <paramref name="NewAttachments"/> are stored and added; <paramref name="RemovedAttachmentIds"/> are dropped and
+/// their files deleted once the change is committed.
 /// </summary>
 public sealed record EditBriefingCommand(
     Guid BriefingId,
@@ -16,4 +18,6 @@ public sealed record EditBriefingCommand(
     string? Description = null,
     string? Objective = null,
     string? RequestingArea = null,
-    DateOnly? DesiredDeliveryDate = null) : ICommand<BriefingDto>;
+    DateOnly? DesiredDeliveryDate = null,
+    IReadOnlyList<AttachmentUpload>? NewAttachments = null,
+    IReadOnlyList<Guid>? RemovedAttachmentIds = null) : ICommand<BriefingDto>;

@@ -1,4 +1,7 @@
+using BriefMe.Application.Common.Errors;
+using BriefMe.Application.Tests.TestDoubles;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
+using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
 using FluentAssertions;
 
@@ -63,5 +66,47 @@ public class EditBriefingCommandValidatorTests
         // Assert
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == nameof(EditBriefingCommand.Priority));
+    }
+
+    [Fact]
+    public void Validate_WhenMoreNewAttachmentsThanMaximum_IsInvalid()
+    {
+        // Arrange
+        var command = new EditBriefingCommand(Guid.NewGuid(), "New title", Priority.Medium,
+            NewAttachments: [.. Enumerable.Range(0, Briefing.MaxAttachments + 1).Select(_ => TestUploads.Pdf())]);
+
+        // Act
+        var result = _validator.Validate(command);
+
+        // Assert
+        result.Errors.Should().ContainSingle(e => e.ErrorMessage == BriefingErrors.TooManyAttachments(Briefing.MaxAttachments));
+    }
+
+    [Fact]
+    public void Validate_WhenNewAttachmentIsOversized_IsInvalid()
+    {
+        // Arrange
+        var command = new EditBriefingCommand(Guid.NewGuid(), "New title", Priority.Medium,
+            NewAttachments: [TestUploads.Oversized("huge.mp4")]);
+
+        // Act
+        var result = _validator.Validate(command);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Validate_WhenRemovedAttachmentIdIsEmpty_IsInvalid()
+    {
+        // Arrange
+        var command = new EditBriefingCommand(Guid.NewGuid(), "New title", Priority.Medium,
+            RemovedAttachmentIds: [Guid.Empty]);
+
+        // Act
+        var result = _validator.Validate(command);
+
+        // Assert
+        result.Errors.Should().ContainSingle(e => e.ErrorMessage == BriefingErrors.Validation.AttachmentIdRequired);
     }
 }

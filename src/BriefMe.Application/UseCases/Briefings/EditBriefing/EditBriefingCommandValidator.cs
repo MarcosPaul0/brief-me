@@ -1,4 +1,5 @@
 using BriefMe.Application.Common.Errors;
+using BriefMe.Domain.Entities;
 using FluentValidation;
 
 namespace BriefMe.Application.UseCases.Briefings.EditBriefing;
@@ -19,5 +20,18 @@ public sealed class EditBriefingCommandValidator : AbstractValidator<EditBriefin
 
         RuleFor(x => x.Priority)
             .IsInEnum().WithMessage(BriefingErrors.Validation.InvalidPriority);
+
+        // The total after the edit (existing − removed + new) needs the briefing; the handler checks it.
+        RuleFor(x => x.NewAttachments!.Count)
+            .LessThanOrEqualTo(Briefing.MaxAttachments)
+            .WithMessage(BriefingErrors.TooManyAttachments(Briefing.MaxAttachments))
+            .OverridePropertyName(nameof(EditBriefingCommand.NewAttachments))
+            .When(x => x.NewAttachments is not null);
+
+        RuleForEach(x => x.NewAttachments)
+            .SetValidator(new AttachmentUploadValidator());
+
+        RuleForEach(x => x.RemovedAttachmentIds)
+            .NotEmpty().WithMessage(BriefingErrors.Validation.AttachmentIdRequired);
     }
 }
