@@ -4,6 +4,7 @@ using BriefMe.Infrastructure;
 using BriefMe.Infrastructure.Persistence.Seeding;
 using BriefMe.Web.Auth;
 using BriefMe.Web.Components;
+using BriefMe.Web.Components.Users;
 using BriefMe.Web.Http;
 using BriefMe.Web.ApiClients;
 using BriefMe.Web.ErrorHandling;
@@ -59,6 +60,10 @@ builder.Services.AddScoped<IBriefingsApiClient, BriefingsApiClient>();
 
 // Admin category management.
 builder.Services.AddScoped<ICategoriesApiClient, CategoriesApiClient>();
+
+// The signed-in user's own profile and avatar (user-avatar spec), shared by the header and /perfil.
+builder.Services.AddScoped<IProfileApiClient, ProfileApiClient>();
+builder.Services.AddScoped<CurrentUserProfile>();
 
 
 
