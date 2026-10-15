@@ -3,7 +3,11 @@
     beside it as category-tab pills, the signed-in user and "Sair" on the right. Below sm the links drop to a second row that scrolls
     sideways inside itself rather than widening the page.
 *@
+@using System.Security.Claims
+@implements IDisposable
 @inject IAuthService AuthService
+@inject AuthSessionStore SessionStore
+@inject CurrentUserProfile CurrentProfile
 @inject NavigationManager NavigationManager
 
 <header class="sticky top-0 z-40 border-b border-hairline-soft bg-canvas">
@@ -21,10 +25,18 @@
 
         <AuthorizeView>
             <div class="ml-auto flex items-center gap-4">
-                <span class="hidden max-w-[200px] items-center gap-1.5 text-nav-link text-muted md:flex">
-                    <Icon Name="IconName.User" />
-                    <span class="truncate">@context.User.Identity?.Name</span>
-                </span>
+                <a href="perfil" class="flex max-w-[220px] items-center gap-2 rounded-pill text-nav-link text-muted hover:text-ink"
+                   title="Meu perfil">
+                    @if (CurrentProfile.Profile is { } profile)
+                    {
+                        <UserAvatar UserId="profile.UserId" Name="@profile.FullName" AvatarVersion="profile.AvatarVersion" />
+                    }
+                    else
+                    {
+                        <Avatar Name="@context.User.Identity?.Name" />
+                    }
+                    <span class="hidden truncate md:inline">@context.User.Identity?.Name</span>
+                </a>
                 <Button Variant="ButtonVariant.Outline" Size="ButtonSize.Sm" Icon="IconName.LogOut" OnClick="LogoutAsync" Loading="_isLoggingOut">
                     @(_isLoggingOut ? "Saindo..." : "Sair")
                 </Button>
@@ -39,6 +51,32 @@
 
 @code {
     private bool _isLoggingOut;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override void OnInitialized() => CurrentProfile.Changed += HandleProfileChanged;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Same guard as the pages: no token before the interactive restore, so the API call would go out anonymous.
+        if (!RendererInfo.IsInteractive || AuthenticationState is null)
+            return;
+
+        var user = (await AuthenticationState).User;
+        var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? user.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(userIdClaim, out var userId))
+            return;
+
+        await SessionStore.RestorationCompleted;
+
+        // A failed load keeps the initial-only avatar; nothing in the header is worth an error message.
+        await CurrentProfile.EnsureLoadedAsync(userId);
+    }
+
+    private void HandleProfileChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => CurrentProfile.Changed -= HandleProfileChanged;
 
     private RenderFragment NavLinks => __builder =>
     {
