@@ -4,11 +4,16 @@ using BriefMe.Application.UseCases.Users.ChangePassword;
 using BriefMe.Application.UseCases.Users.ChangeUserStatus;
 using BriefMe.Application.UseCases.Users.CreateUser;
 using BriefMe.Application.UseCases.Users.DeleteUser;
+using BriefMe.Application.UseCases.Users.GetMyProfile;
+using BriefMe.Application.UseCases.Users.GetUserAvatar;
 using BriefMe.Application.UseCases.Users.GetUserById;
 using BriefMe.Application.UseCases.Users.GetUsersPaged;
+using BriefMe.Application.UseCases.Users.RemoveMyAvatar;
 using BriefMe.Application.UseCases.Users.UpdateUser;
+using BriefMe.Application.UseCases.Users.UploadMyAvatar;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
+using BriefMe.Domain.ValueObjects;
 using BriefMe.Web.Contracts.Users;
 using BriefMe.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -21,6 +26,10 @@ namespace BriefMe.Web.Controllers;
 [Authorize]
 public sealed class UsersController(ISender sender, ICurrentUser currentUser) : ControllerBase
 {
+    // Room for the multipart envelope around a maximum-size avatar. Anything bigger is cut off by Kestrel
+    // before it is buffered; below it, the validator answers with the friendly size message (AVT-04).
+    private const long AvatarRequestSizeLimit = AvatarFormat.MaxSizeBytes + 64 * 1024;
+
     [HttpPost]
     [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<IActionResult> Create(CreateUserRequest request, CancellationToken cancellationToken)
@@ -106,6 +115,60 @@ public sealed class UsersController(ISender sender, ICurrentUser currentUser) : 
         var result = await sender.Send(query, cancellationToken);
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao consultar usuário");
+    }
+
+    /// <summary>The signed-in user's own profile, for every role (header, profile page).</summary>
+    [HttpGet("me")]
+    public async Task<IActionResult> GetMe(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetMyProfileQuery(), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao consultar perfil");
+    }
+
+    /// <summary>
+    /// Replaces the caller's own avatar (AVT-01). Self-service only, so there is no id to authorize — the
+    /// handler acts on the authenticated user. Multipart field <c>file</c>.
+    /// </summary>
+    [HttpPut("me/avatar")]
+    [RequestSizeLimit(AvatarRequestSizeLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = AvatarRequestSizeLimit)]
+    public async Task<IActionResult> UploadMyAvatar(IFormFile? file, CancellationToken cancellationToken)
+    {
+        await using var content = file?.OpenReadStream() ?? Stream.Null;
+        var command = new UploadMyAvatarCommand(content, file?.Length ?? 0);
+        var result = await sender.Send(command, cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao enviar avatar");
+    }
+
+    [HttpDelete("me/avatar")]
+    public async Task<IActionResult> RemoveMyAvatar(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new RemoveMyAvatarCommand(), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao remover avatar");
+    }
+
+    /// <summary>
+    /// Avatar bytes for an <c>&lt;img&gt;</c> (AVT-09). Anonymous because an image request carries no bearer
+    /// token; ids are unguessable and avatars are not sensitive. The UI always appends <c>?v={AvatarVersion}</c>,
+    /// which changes on every upload, so such a request may be cached as immutable; a bare URL revalidates.
+    /// </summary>
+    [HttpGet("{id:guid}/avatar")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvatar(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetUserAvatarQuery(id), cancellationToken);
+        if (result.IsFailure)
+            return result.ToProblem(this, "Avatar indisponível");
+
+        Response.Headers.CacheControl = Request.Query.ContainsKey("v")
+            ? "public, max-age=31536000, immutable"
+            : "no-cache";
+        Response.Headers.XContentTypeOptions = "nosniff";
+
+        return File(result.Value.Content, result.Value.ContentType);
     }
 
     private string? GetClientIpAddress() => HttpContext.Connection.RemoteIpAddress?.ToString();
