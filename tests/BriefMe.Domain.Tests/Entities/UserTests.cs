@@ -226,4 +226,63 @@ public class UserTests
         user.DeletedAt.Should().NotBeNull();
         user.DeletedBy.Should().Be("admin@briefme.com");
     }
+
+    [Fact]
+    public void ChangeAvatar_WhenKeyIsValid_StoresKeyContentTypeAndVersion()
+    {
+        // Arrange
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
+
+        // Act
+        user.ChangeAvatar("avatars/a/b.png", AvatarFormat.Png);
+
+        // Assert
+        new { user.AvatarKey, user.AvatarContentType, HasVersion = user.AvatarVersion.HasValue }
+            .Should().BeEquivalentTo(new { AvatarKey = "avatars/a/b.png", AvatarContentType = "image/png", HasVersion = true });
+    }
+
+    [Fact]
+    public void ChangeAvatar_WhenCalledAgain_ProducesANewVersion()
+    {
+        // Arrange
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
+        user.ChangeAvatar("avatars/a/first.png", AvatarFormat.Png);
+        var firstVersion = user.AvatarVersion;
+
+        // Act
+        user.ChangeAvatar("avatars/a/second.jpg", AvatarFormat.Jpeg);
+
+        // Assert
+        user.AvatarVersion.Should().NotBe(firstVersion!.Value);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ChangeAvatar_WhenKeyIsBlank_ThrowsDomainException(string key)
+    {
+        // Arrange
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
+
+        // Act
+        var act = () => user.ChangeAvatar(key, AvatarFormat.Png);
+
+        // Assert
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void RemoveAvatar_WhenUserHasAvatar_ClearsAllAvatarFields()
+    {
+        // Arrange
+        var user = User.Create("Maria Silva", ValidEmail(), "hashed-password", UserRole.Requester);
+        user.ChangeAvatar("avatars/a/b.png", AvatarFormat.Png);
+
+        // Act
+        user.RemoveAvatar();
+
+        // Assert
+        new { user.AvatarKey, user.AvatarContentType, user.AvatarVersion }
+            .Should().BeEquivalentTo(new { AvatarKey = (string?)null, AvatarContentType = (string?)null, AvatarVersion = (Guid?)null });
+    }
 }

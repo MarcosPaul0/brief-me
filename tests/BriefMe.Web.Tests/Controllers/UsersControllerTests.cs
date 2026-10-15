@@ -5,9 +5,13 @@ using BriefMe.Application.UseCases.Users.ChangePassword;
 using BriefMe.Application.UseCases.Users.ChangeUserStatus;
 using BriefMe.Application.UseCases.Users.CreateUser;
 using BriefMe.Application.UseCases.Users.DeleteUser;
+using BriefMe.Application.UseCases.Users.GetMyProfile;
+using BriefMe.Application.UseCases.Users.GetUserAvatar;
 using BriefMe.Application.UseCases.Users.GetUserById;
 using BriefMe.Application.UseCases.Users.GetUsersPaged;
+using BriefMe.Application.UseCases.Users.RemoveMyAvatar;
 using BriefMe.Application.UseCases.Users.UpdateUser;
+using BriefMe.Application.UseCases.Users.UploadMyAvatar;
 using BriefMe.Application.UseCases.Users;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Enums;
@@ -108,7 +112,7 @@ public class UsersControllerTests
     {
         // Arrange
         var createdUserId = Guid.NewGuid();
-        var userResult = new UserDto(createdUserId, "Novo Usuário", "novo@briefme.com", UserRole.Designer);
+        var userResult = new UserDto(createdUserId, "Novo Usuário", "novo@briefme.com", UserRole.Designer, null);
         var senderMock = new Mock<ISender>();
         senderMock.Setup(s => s.Send(It.IsAny<CreateUserCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Success(userResult));
@@ -177,7 +181,7 @@ public class UsersControllerTests
     {
         // Arrange
         var targetId = Guid.NewGuid();
-        var userResult = new UserDto(targetId, "Ana Editada", "ana.editada@briefme.com", UserRole.Designer);
+        var userResult = new UserDto(targetId, "Ana Editada", "ana.editada@briefme.com", UserRole.Designer, null);
         var senderMock = new Mock<ISender>();
         senderMock.Setup(s => s.Send(It.IsAny<UpdateUserCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Success(userResult));
@@ -363,5 +367,156 @@ public class UsersControllerTests
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task GetMe_WhenCallerIsAuthenticatedWithAnyRole_ReturnsOwnProfile()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var profile = new UserDto(userId, "Ana", "ana@briefme.com", UserRole.Requester, Guid.NewGuid());
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetMyProfileQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(profile));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), userId, roles: [nameof(UserRole.Requester)]));
+
+        // Act
+        var response = await client.GetFromJsonAsync<UserDto>("/users/me");
+
+        // Assert
+        response.Should().BeEquivalentTo(profile);
+    }
+
+    [Fact]
+    public async Task UploadMyAvatar_WhenCallerIsAuthenticated_SendsFileBytesAndLength()
+    {
+        // Arrange
+        byte[] bytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        UploadMyAvatarCommand? sent = null;
+        byte[]? sentBytes = null;
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<UploadMyAvatarCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<UserDto>>, CancellationToken>((command, _) =>
+            {
+                sent = (UploadMyAvatarCommand)command;
+                using var copy = new MemoryStream();
+                sent.Content.CopyTo(copy);
+                sentBytes = copy.ToArray();
+            })
+            .ReturnsAsync(Result.Success(new UserDto(Guid.NewGuid(), "Ana", "ana@briefme.com", UserRole.Designer, Guid.NewGuid())));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
+        using var form = new MultipartFormDataContent { { new ByteArrayContent(bytes), "file", "me.png" } };
+
+        // Act
+        var response = await client.PutAsync("/users/me/avatar", form);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        new { sent!.Length, Bytes = sentBytes }.Should().BeEquivalentTo(new { Length = (long)bytes.Length, Bytes = bytes });
+    }
+
+    [Fact]
+    public async Task UploadMyAvatar_WhenCallerIsAnonymous_ReturnsUnauthorized()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        using var form = new MultipartFormDataContent { { new ByteArrayContent([1, 2, 3]), "file", "me.png" } };
+
+        // Act
+        var response = await client.PutAsync("/users/me/avatar", form);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task RemoveMyAvatar_WhenCallerIsAuthenticated_ReturnsOk()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<RemoveMyAvatarCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new UserDto(Guid.NewGuid(), "Ana", "ana@briefme.com", UserRole.Admin, null)));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
+
+        // Act
+        var response = await client.DeleteAsync("/users/me/avatar");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task GetAvatar_WhenCallerIsAnonymous_StreamsImageWithNoSniff()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.Is<GetUserAvatarQuery>(q => q.UserId == userId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new AvatarFileDto(new MemoryStream([1, 2, 3]), "image/png")));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/users/{userId}/avatar?v=abc");
+
+        // Assert
+        new
+        {
+            response.StatusCode,
+            ContentType = response.Content.Headers.ContentType?.MediaType,
+            NoSniff = response.Headers.GetValues("X-Content-Type-Options").Single(),
+            Bytes = await response.Content.ReadAsByteArrayAsync()
+        }.Should().BeEquivalentTo(new { StatusCode = HttpStatusCode.OK, ContentType = "image/png", NoSniff = "nosniff", Bytes = new byte[] { 1, 2, 3 } });
+    }
+
+    [Theory]
+    [InlineData("?v=abc", "public, max-age=31536000, immutable")]
+    [InlineData("", "no-cache")]
+    public async Task GetAvatar_WhenServed_CachesImmutablyOnlyForVersionedUrls(string query, string expectedCacheControl)
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetUserAvatarQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new AvatarFileDto(new MemoryStream([1]), "image/png")));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/users/{Guid.NewGuid()}/avatar{query}");
+
+        // Assert
+        response.Headers.CacheControl!.ToString().Should().Be(expectedCacheControl);
+    }
+
+    [Fact]
+    public async Task GetAvatar_WhenUserHasNoAvatar_ReturnsNotFound()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetUserAvatarQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.NotFound<AvatarFileDto>("Avatar não encontrado."));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/users/{Guid.NewGuid()}/avatar");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }
