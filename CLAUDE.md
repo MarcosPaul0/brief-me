@@ -51,7 +51,11 @@ Domain ← Application ← Infrastructure
 - Repository implementations
 - External API clients (HTTP, messaging)
 - Object storage (`Storage/MinioFileStorage` behind Application's `IFileStorage`) — MinIO from `docker-compose.yml`
-  locally (`ObjectStorage` config section, console on `:9001`); holds user avatars
+  locally (`ObjectStorage` config section, console on `:9001`); holds user avatars and briefing attachments
+  (`briefings/{briefingId}/…`)
+- Attachment content links (`Storage/HmacAttachmentLinkSigner` behind `IAttachmentLinkSigner`) — 15-minute HMAC
+  tokens that let `<img>`/`<video>`/`<audio>`/`<iframe>` load an attachment without a bearer token
+  (`AttachmentLinks:SigningKey`, ≥ 32 bytes, required outside Development)
 - Migrations
 
 ### Web (`BriefMe.Web`)
