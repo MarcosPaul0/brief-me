@@ -30,6 +30,18 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 
     public UserRole Role { get; private set; }
 
+    /// <summary>Object-store key of the uploaded avatar; null when the user has none (the UI shows the initial).</summary>
+    public string? AvatarKey { get; private set; }
+
+    /// <summary>Content type detected from the avatar's bytes (<see cref="AvatarFormat"/>), served back as-is.</summary>
+    public string? AvatarContentType { get; private set; }
+
+    /// <summary>
+    /// Changes on every upload so clients can put it in the image URL and cache the response forever — a new
+    /// avatar is a new URL. Null exactly when <see cref="AvatarKey"/> is null.
+    /// </summary>
+    public Guid? AvatarVersion { get; private set; }
+
     public DateTime CreatedAt { get; set; }
 
     public string? CreatedBy { get; set; }
@@ -73,6 +85,25 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 
         FullName = fullName.Trim();
         Email = email;
+    }
+
+    public void ChangeAvatar(string storageKey, AvatarFormat format)
+    {
+        if (string.IsNullOrWhiteSpace(storageKey))
+            throw new DomainException("Chave do avatar é obrigatória.");
+
+        ArgumentNullException.ThrowIfNull(format);
+
+        AvatarKey = storageKey;
+        AvatarContentType = format.ContentType;
+        AvatarVersion = Guid.NewGuid();
+    }
+
+    public void RemoveAvatar()
+    {
+        AvatarKey = null;
+        AvatarContentType = null;
+        AvatarVersion = null;
     }
 
     public void Activate() => Status = UserStatus.Active;
