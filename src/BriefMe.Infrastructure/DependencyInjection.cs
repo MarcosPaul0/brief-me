@@ -8,6 +8,7 @@ using BriefMe.Infrastructure.Persistence.Seeding;
 using BriefMe.Infrastructure.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Minio;
 
@@ -65,6 +66,10 @@ public static class DependencyInjection
             .WithSSL(settings.UseSsl)
             .Build());
         services.AddSingleton<IFileStorage, MinioFileStorage>();
+
+        services.Configure<AttachmentLinkSettings>(configuration.GetSection(AttachmentLinkSettings.SectionName));
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<IAttachmentLinkSigner, HmacAttachmentLinkSigner>();
 
         return services;
     }
