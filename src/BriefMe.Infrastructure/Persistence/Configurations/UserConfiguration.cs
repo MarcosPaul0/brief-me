@@ -35,6 +35,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(20)
             .IsRequired();
 
+        builder.Property(u => u.AvatarKey).HasMaxLength(300);
+        builder.Property(u => u.AvatarContentType).HasMaxLength(50);
+
         builder.Property(u => u.CreatedAt).IsRequired();
         builder.Property(u => u.CreatedBy).HasMaxLength(100);
         builder.Property(u => u.UpdatedBy).HasMaxLength(100);
