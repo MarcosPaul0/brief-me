@@ -1,6 +1,7 @@
 using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
+using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Persistence;
 using BriefMe.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
@@ -10,10 +11,13 @@ namespace BriefMe.Infrastructure.Tests.Persistence.Repositories;
 
 public class BriefingRepositoryTests
 {
-    private static AppDbContext CreateContext()
+    private static AppDbContext CreateContext() => CreateContext(Guid.NewGuid().ToString());
+
+    /// <summary>A context over a named store, so a test can save in one context and read in a fresh one.</summary>
+    private static AppDbContext CreateContext(string databaseName)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName)
             .Options;
 
         return new AppDbContext(options);
@@ -314,5 +318,108 @@ public class BriefingRepositoryTests
 
         // Assert
         result.Should().Be(1);
+    }
+
+    private static async Task<Briefing> SeedDraftWithAttachmentsAsync(string databaseName, params string[] fileNames)
+    {
+        await using var context = CreateContext(databaseName);
+        var briefing = Briefing.Create("Briefing", Priority.Medium, Guid.NewGuid(), Guid.NewGuid());
+        foreach (var fileName in fileNames)
+            briefing.AddAttachment(fileName, $"briefings/{Guid.NewGuid():N}.pdf", AttachmentFormat.Pdf, 100);
+
+        context.Briefings.Add(briefing);
+        await context.SaveChangesAsync();
+        return briefing;
+    }
+
+    [Fact]
+    public async Task GetByIdWithAttachmentsAsync_WhenBriefingHasAttachments_LoadsThem()
+    {
+        // Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "a.pdf", "b.pdf");
+        await using var context = CreateContext(databaseName);
+        var repository = new BriefingRepository(context);
+
+        // Act
+        var briefing = await repository.GetByIdWithAttachmentsAsync(seeded.Id);
+
+        // Assert
+        briefing!.Attachments.Select(a => a.FileName).Should().BeEquivalentTo(["a.pdf", "b.pdf"]);
+    }
+
+    [Fact]
+    public async Task GetByIdWithAttachmentsAsync_WhenBriefingDoesNotExist_ReturnsNull()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var repository = new BriefingRepository(context);
+
+        // Act
+        var briefing = await repository.GetByIdWithAttachmentsAsync(Guid.NewGuid());
+
+        // Assert
+        briefing.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenBriefingHasAttachments_DoesNotLoadThem()
+    {
+        // Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "a.pdf");
+        await using var context = CreateContext(databaseName);
+        var repository = new BriefingRepository(context);
+
+        // Act
+        var briefing = await repository.GetByIdAsync(seeded.Id);
+
+        // Assert
+        briefing!.Attachments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SaveChanges_WhenAttachmentAddedToUpdatedTrackedBriefing_InsertsIt()
+    {
+        // Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "a.pdf");
+        await using (var context = CreateContext(databaseName))
+        {
+            var repository = new BriefingRepository(context);
+            var briefing = await repository.GetByIdWithAttachmentsAsync(seeded.Id);
+            repository.Update(briefing!);
+            briefing!.AddAttachment("b.png", "briefings/b.png", AttachmentFormat.Png, 50);
+
+            // Act
+            await context.SaveChangesAsync();
+        }
+
+        // Assert
+        await using var verify = CreateContext(databaseName);
+        var reloaded = await new BriefingRepository(verify).GetByIdWithAttachmentsAsync(seeded.Id);
+        reloaded!.Attachments.Select(a => a.FileName).Should().BeEquivalentTo(["a.pdf", "b.png"]);
+    }
+
+    [Fact]
+    public async Task SaveChanges_WhenAttachmentRemovedFromTrackedBriefing_DeletesIt()
+    {
+        // Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "a.pdf", "b.pdf");
+        var droppedId = seeded.Attachments.Single(a => a.FileName == "a.pdf").Id;
+        await using (var context = CreateContext(databaseName))
+        {
+            var repository = new BriefingRepository(context);
+            var briefing = await repository.GetByIdWithAttachmentsAsync(seeded.Id);
+            briefing!.RemoveAttachment(droppedId);
+
+            // Act
+            await context.SaveChangesAsync();
+        }
+
+        // Assert
+        await using var verify = CreateContext(databaseName);
+        verify.Set<BriefingAttachment>().Select(a => a.FileName).Should().BeEquivalentTo(["b.pdf"]);
     }
 }

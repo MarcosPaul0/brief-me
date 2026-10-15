@@ -7,6 +7,11 @@ namespace BriefMe.Infrastructure.Persistence.Repositories;
 
 public class BriefingRepository(AppDbContext dbContext) : EfRepository<Briefing>(dbContext), IBriefingRepository
 {
+    public async Task<Briefing?> GetByIdWithAttachmentsAsync(Guid id, CancellationToken cancellationToken = default) =>
+        await DbContext.Briefings
+            .Include(b => b.Attachments)
+            .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
+
     public async Task<IReadOnlyList<Briefing>> GetByRequesterAsync(
         Guid requesterId,
         BriefingFilter filter,

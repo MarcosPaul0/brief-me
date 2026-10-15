@@ -6,6 +6,12 @@ namespace BriefMe.Domain.Repositories;
 public interface IBriefingRepository : IRepository<Briefing>
 {
     /// <summary>
+    /// The briefing with its <see cref="Briefing.Attachments"/> loaded, or null. Use it wherever the collection is
+    /// read or changed; <c>GetByIdAsync</c> leaves it empty so the other transitions never pay the join.
+    /// </summary>
+    Task<Briefing?> GetByIdWithAttachmentsAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns one page of a requester's briefings, filtered, ordered from newest to oldest.
     /// The total behind the filter comes from <see cref="CountByRequesterAsync"/> — the caller assembles the
     /// two into its own paging envelope.

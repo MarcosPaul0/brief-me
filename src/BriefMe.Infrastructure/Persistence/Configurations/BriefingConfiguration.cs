@@ -81,12 +81,20 @@ public class BriefingConfiguration : IEntityTypeConfiguration<Briefing>
             .HasForeignKey(b => b.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Attachments are a composition: no navigation back, deleted with the briefing, and a child dropped
+        // from the collection is deleted as an orphan.
+        builder.HasMany(b => b.Attachments)
+            .WithOne()
+            .HasForeignKey(a => a.BriefingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(b => b.Attachments).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.HasIndex(b => b.RequesterId).HasDatabaseName("IX_Briefings_RequesterId");
         builder.HasIndex(b => b.Status).HasDatabaseName("IX_Briefings_Status");
         builder.HasIndex(b => b.CategoryId).HasDatabaseName("IX_Briefings_CategoryId");
 
         // Serves both the designer queue (Submitted, no designer) and "my work" (by designer).
         builder.HasIndex(b => new { b.Status, b.DesignerId }).HasDatabaseName("IX_Briefings_Status_DesignerId");
-
     }
 }
