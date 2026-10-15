@@ -34,6 +34,16 @@ public static class BriefingErrors
     /// <summary>Two designers claimed at once and the other one committed first.</summary>
     public const string AlreadyClaimed = "This briefing was already claimed by another designer.";
 
+    public const string AttachmentNotFound = "Attachment not found.";
+
+    /// <summary>Raised by the validators (files in one request) and by edit (existing − removed + new).</summary>
+    public static string TooManyAttachments(int max) =>
+        $"A briefing can have at most {max} attachments.";
+
+    /// <summary>Names the file whose bytes failed format detection; <paramref name="reason"/> comes from the value object.</summary>
+    public static string AttachmentRejected(string? fileName, string reason) =>
+        $"{fileName ?? "File"}: {reason}";
+
     public static string CancellationNotAllowed(BriefingStatus status) =>
         $"Cancellation not allowed: the briefing is in {status}.";
 
@@ -60,6 +70,14 @@ public static class BriefingErrors
         public const string InvalidStatus = "Invalid status.";
 
         public const string DeliveryNoteRequired = "Delivery note is required.";
+
+        public const string AttachmentIdRequired = "Attachment id is required.";
+
+        public static string AttachmentEmpty(string? fileName) =>
+            $"{fileName ?? "File"} is empty.";
+
+        public static string AttachmentTooLarge(string? fileName, long maxBytes) =>
+            $"{fileName ?? "File"} exceeds the {maxBytes / (1024 * 1024)} MB limit.";
 
         public static string DeliveryNoteTooLong(int maxLength) =>
             $"Delivery note must be at most {maxLength} characters.";
