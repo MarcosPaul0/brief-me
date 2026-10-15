@@ -77,6 +77,8 @@
             </dl>
         </Card>
 
+        <AttachmentGallery Class="mt-5" BriefingId="_briefing.Id" Attachments="_briefing.Attachments" OnReload="LoadAsync" />
+
         @if (IsRequester && _briefing.Status is BriefingStatus.Draft or BriefingStatus.Submitted)
         {
             <div class="mt-5 flex flex-wrap justify-end gap-2">
