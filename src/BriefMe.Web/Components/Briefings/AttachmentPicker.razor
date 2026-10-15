@@ -1,0 +1,171 @@
+@*
+    Attachment field of the briefing editor (ATT-06/07/13/21). Lists the briefing's current attachments (edit mode)
+    with a remove/undo toggle, queues newly picked files, and refuses on the spot what the API would reject anyway
+    (size, extension, count). Accepted files are read into memory when picked: a later selection on the same
+    InputFile does not keep earlier IBrowserFile handles reliable. The parent reads Queued / RemovedIds via @ref.
+*@
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Domain.Entities
+@using BriefMe.Domain.Enums
+@using BriefMe.Domain.ValueObjects
+
+<div class="flex flex-col gap-3">
+    <div class="flex flex-wrap items-center gap-3">
+        <FileButton id="attachments" Accept="@AttachmentLabels.Accept" Icon="IconName.Paperclip" multiple
+                    Disabled="@(Disabled || RemainingSlots == 0)" Loading="_isReading" OnChange="OnFilesPickedAsync">
+            @(_isReading ? "Lendo arquivos..." : "Adicionar anexos")
+        </FileButton>
+        <p class="text-caption text-muted">
+            @AttachmentLabels.AcceptedFormatsLabel. Até @Briefing.MaxAttachments arquivos de @AttachmentLabels.MaxSizeLabel cada.
+        </p>
+    </div>
+
+    @if (_rejections.Count > 0)
+    {
+        <Alert Variant="AlertVariant.Warning" Title="Alguns arquivos não foram adicionados">
+            <ul class="list-disc pl-5">
+                @foreach (var rejection in _rejections)
+                {
+                    <li>@rejection</li>
+                }
+            </ul>
+        </Alert>
+    }
+
+    @if (Existing.Count > 0 || _queued.Count > 0)
+    {
+        <ul class="flex flex-col divide-y divide-hairline rounded-lg border border-hairline">
+            @foreach (var attachment in Existing)
+            {
+                var removed = _removedIds.Contains(attachment.Id);
+                <li @key="attachment.Id" class="flex items-center gap-3 px-4 py-3">
+                    @if (attachment.Kind is AttachmentKind.Image && BriefingId is { } briefingId && !_brokenThumbnails.Contains(attachment.Id))
+                    {
+                        <img src="@AttachmentLabels.ContentUrl(briefingId, attachment)" alt="" loading="lazy"
+                             class="@ClassNames.Join("size-10 shrink-0 rounded-md bg-surface-card object-cover", removed ? "opacity-50" : null)"
+                             @onerror="() => _brokenThumbnails.Add(attachment.Id)" />
+                    }
+                    else
+                    {
+                        @Glyph(attachment.Kind, removed)
+                    }
+                    <div class="min-w-0 flex-1">
+                        <p class="@ClassNames.Join("truncate text-body-sm font-semibold", removed ? "text-muted line-through" : "text-ink")" title="@attachment.FileName">@attachment.FileName</p>
+                        <p class="text-caption text-muted">
+                            @(removed ? "Será removido ao salvar" : $"{AttachmentLabels.Kind(attachment.Kind)} · {AttachmentLabels.Size(attachment.SizeBytes)}")
+                        </p>
+                    </div>
+                    @if (removed)
+                    {
+                        <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Icon="IconName.RotateCcw" Disabled="@(Disabled || RemainingSlots == 0)"
+                                OnClick="() => _removedIds.Remove(attachment.Id)">Desfazer</Button>
+                    }
+                    else
+                    {
+                        <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Icon="IconName.Trash" Disabled="Disabled"
+                                aria-label="@($"Remover {attachment.FileName}")" OnClick="() => _removedIds.Add(attachment.Id)">Remover</Button>
+                    }
+                </li>
+            }
+
+            @foreach (var file in _queued)
+            {
+                <li @key="file" class="flex items-center gap-3 px-4 py-3">
+                    @Glyph(AttachmentLabels.GuessKind(file.FileName) ?? AttachmentKind.Pdf, false)
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-body-sm font-semibold text-ink" title="@file.FileName">@file.FileName</p>
+                        <p class="text-caption text-muted">Novo · @AttachmentLabels.Size(file.Content.LongLength)</p>
+                    </div>
+                    <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Icon="IconName.X" Disabled="Disabled"
+                            aria-label="@($"Retirar {file.FileName}")" OnClick="() => _queued.Remove(file)">Retirar</Button>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    // Hard cap on one picker selection, well above the briefing limit; the count rule below gives the real answer.
+    private const int MaxFilesPerSelection = 50;
+
+    /// <summary>The briefing's current attachments; empty in create mode.</summary>
+    [Parameter]
+    public IReadOnlyList<BriefingAttachmentDto> Existing { get; set; } = [];
+
+    /// <summary>Needed for the thumbnails of existing images; null in create mode.</summary>
+    [Parameter]
+    public Guid? BriefingId { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private readonly List<AttachmentFile> _queued = [];
+    private readonly HashSet<Guid> _removedIds = [];
+    private readonly HashSet<Guid> _brokenThumbnails = [];
+    private readonly List<string> _rejections = [];
+    private bool _isReading;
+
+    /// <summary>Files to upload with the next save.</summary>
+    public IReadOnlyList<AttachmentFile> Queued => _queued;
+
+    /// <summary>Existing attachments to drop with the next save.</summary>
+    public IReadOnlyList<Guid> RemovedIds => [.. _removedIds];
+
+    private int RemainingSlots => Math.Max(0, Briefing.MaxAttachments - (Existing.Count - _removedIds.Count) - _queued.Count);
+
+    private async Task OnFilesPickedAsync(InputFileChangeEventArgs args)
+    {
+        _rejections.Clear();
+        _isReading = true;
+
+        try
+        {
+            foreach (var file in args.GetMultipleFiles(MaxFilesPerSelection))
+            {
+                var rejection = Reject(file);
+                if (rejection is not null)
+                {
+                    _rejections.Add($"{file.Name}: {rejection}");
+                    continue;
+                }
+
+                await using var stream = file.OpenReadStream(AttachmentFormat.MaxSizeBytes);
+                using var buffer = new MemoryStream((int)file.Size);
+                await stream.CopyToAsync(buffer);
+                _queued.Add(new AttachmentFile(file.Name, file.ContentType, buffer.ToArray()));
+            }
+        }
+        catch (IOException)
+        {
+            _rejections.Add("Não foi possível ler um dos arquivos. Tente selecioná-lo novamente.");
+        }
+        finally
+        {
+            _isReading = false;
+        }
+    }
+
+    private string? Reject(IBrowserFile file)
+    {
+        if (AttachmentLabels.GuessKind(file.Name) is null)
+            return "formato não aceito.";
+
+        if (file.Size == 0)
+            return "arquivo vazio.";
+
+        if (file.Size > AttachmentFormat.MaxSizeBytes)
+            return $"maior que {AttachmentLabels.MaxSizeLabel}.";
+
+        if (RemainingSlots == 0)
+            return $"limite de {Briefing.MaxAttachments} anexos atingido.";
+
+        return null;
+    }
+
+    private static RenderFragment Glyph(AttachmentKind kind, bool dimmed) => __builder =>
+    {
+        <span class="@ClassNames.Join("inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-card text-ink", dimmed ? "opacity-50" : null)">
+            <Icon Name="AttachmentLabels.Icon(kind)" Size="20" />
+        </span>
+    };
+}
