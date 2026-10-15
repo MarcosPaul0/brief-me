@@ -9,17 +9,22 @@ using BriefMe.Domain.Repositories;
 
 namespace BriefMe.Application.UseCases.Briefings.GetBriefingById;
 
+/// <summary>
+/// Content tokens for the attachments are issued only after the access check, so a token is never handed to
+/// someone who could not read the briefing (ATT-20).
+/// </summary>
 public sealed class GetBriefingByIdQueryHandler(
     IBriefingRepository briefingRepository,
     BriefingComplementsLoader complementsLoader,
-    ICurrentUser currentUser) : IQueryHandler<GetBriefingByIdQuery, BriefingDetailDto>
+    ICurrentUser currentUser,
+    IAttachmentLinkSigner attachmentLinkSigner) : IQueryHandler<GetBriefingByIdQuery, BriefingDetailDto>
 {
     public async Task<Result<BriefingDetailDto>> Handle(GetBriefingByIdQuery request, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(currentUser.UserId, out var userId))
             return Result.Unauthorized<BriefingDetailDto>(CommonErrors.UserNotAuthenticated);
 
-        var briefing = await briefingRepository.GetByIdAsync(request.BriefingId, cancellationToken);
+        var briefing = await briefingRepository.GetByIdWithAttachmentsAsync(request.BriefingId, cancellationToken);
         if (briefing is null)
             return Result.NotFound<BriefingDetailDto>(BriefingErrors.NotFound);
 
@@ -34,6 +39,13 @@ public sealed class GetBriefingByIdQueryHandler(
 
         var complements = await complementsLoader.LoadAsync([briefing], cancellationToken);
 
-        return Result.Success(BriefingDetailDto.FromBriefingWithComplements(briefing, complements));
+        var attachments = briefing.Attachments
+            .OrderBy(attachment => attachment.UploadedAt)
+            .Select(attachment => BriefingAttachmentDto.FromAttachmentAndToken(
+                attachment,
+                attachmentLinkSigner.Issue(briefing.Id, attachment.Id)))
+            .ToList();
+
+        return Result.Success(BriefingDetailDto.FromBriefingWithComplements(briefing, complements, attachments));
     }
 }

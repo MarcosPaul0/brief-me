@@ -139,7 +139,8 @@ public class BriefingsControllerTests
         DeliveryNote: null,
         DeliveredAt: null,
         ChangeRequestReason: null,
-        CreatedAt: DateTime.UtcNow);
+        CreatedAt: DateTime.UtcNow,
+        Attachments: []);
 
     [Fact]
     public async Task Create_WhenCallerIsRequester_ReturnsCreatedWithLocation()

@@ -7,6 +7,7 @@ namespace BriefMe.Application.Common.Dtos;
 /// <summary>
 /// A single briefing with the names the detail screen shows next to its ids. The names are nullable
 /// because a lookup can miss (a removed user, say) — the screen then shows a dash instead of failing.
+/// <c>Attachments</c> are mapped by the handler, which owns the token signing, and passed in ready.
 /// </summary>
 public sealed record BriefingDetailDto(
     Guid Id,
@@ -26,9 +27,13 @@ public sealed record BriefingDetailDto(
     string? DeliveryNote,
     DateTime? DeliveredAt,
     string? ChangeRequestReason,
-    DateTime CreatedAt)
+    DateTime CreatedAt,
+    IReadOnlyList<BriefingAttachmentDto> Attachments)
 {
-    public static BriefingDetailDto FromBriefingWithComplements(Briefing briefing, BriefingComplements complements)
+    public static BriefingDetailDto FromBriefingWithComplements(
+        Briefing briefing,
+        BriefingComplements complements,
+        IReadOnlyList<BriefingAttachmentDto> attachments)
     {
         return new(
             briefing.Id,
@@ -48,6 +53,7 @@ public sealed record BriefingDetailDto(
             briefing.DeliveryNote,
             briefing.DeliveredAt,
             briefing.ChangeRequestReason?.Value,
-            briefing.CreatedAt);
+            briefing.CreatedAt,
+            attachments);
     }
 }
