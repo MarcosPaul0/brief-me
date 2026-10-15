@@ -1,0 +1,69 @@
+@*
+    Round user avatar: the image when ImageUrl is set and loads, otherwise the name's initial on a brand-tone disc
+    (AVT-07/08). A broken image (object gone, storage down) swaps to the initial instead of showing a broken icon.
+*@
+@if (ImageUrl is not null && !_imageFailed)
+{
+    <img src="@ImageUrl" alt="@Name" class="@ClassNames.Join("shrink-0 rounded-full bg-surface-card object-cover", SizeClasses, Class)"
+         @onerror="HandleImageError" @attributes="AdditionalAttributes" />
+}
+else
+{
+    <span role="img" aria-label="@Name"
+          class="@ClassNames.Join("inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold text-ink", SizeClasses, ToneClasses, Class)"
+          @attributes="AdditionalAttributes">
+        <span aria-hidden="true">@AvatarInitial.From(Name)</span>
+    </span>
+}
+
+@code {
+    private static readonly string[] Tones =
+    [
+        "bg-brand-lavender",
+        "bg-brand-peach",
+        "bg-brand-mint",
+        "bg-brand-ochre",
+        "bg-surface-strong"
+    ];
+
+    private string? _renderedUrl;
+    private bool _imageFailed;
+
+    /// <summary>Whose avatar — alt text, and the source of the initial.</summary>
+    [Parameter, EditorRequired]
+    public string? Name { get; set; }
+
+    /// <summary>Image to show; null renders the initial.</summary>
+    [Parameter]
+    public string? ImageUrl { get; set; }
+
+    [Parameter]
+    public AvatarSize Size { get; set; } = AvatarSize.Sm;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // A new URL (new avatar version) deserves a fresh attempt even if the previous one failed.
+        if (ImageUrl != _renderedUrl)
+        {
+            _renderedUrl = ImageUrl;
+            _imageFailed = false;
+        }
+    }
+
+    private void HandleImageError() => _imageFailed = true;
+
+    private string SizeClasses => Size switch
+    {
+        AvatarSize.Md => "size-10 text-body-md",
+        AvatarSize.Lg => "size-24 text-display-sm",
+        _ => "size-8 text-body-sm"
+    };
+
+    private string ToneClasses => Tones[AvatarInitial.ToneIndex(Name, Tones.Length)];
+}
