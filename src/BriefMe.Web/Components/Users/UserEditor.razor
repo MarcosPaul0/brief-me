@@ -8,7 +8,7 @@
 @inject AuthSessionStore SessionStore
 @inject NavigationManager NavigationManager
 
-<PageContainer Width="PageWidth.Sm">
+<PageContainer>
     <PageHeader Title="@Title" Description="@Subtitle" />
 
     <div class="mt-8">
@@ -30,12 +30,12 @@
         {
             <Card>
                 <EditForm EditContext="_editContext" FormName="userEditor" OnValidSubmit="HandleValidSubmitAsync"
-                          class="flex flex-col gap-4 p-6 sm:p-8">
+                          class="grid gap-x-6 gap-y-5 p-6 sm:p-8 md:grid-cols-2">
                     <DataAnnotationsValidator />
 
                     @if (_generalError is not null)
                     {
-                        <Alert>@_generalError</Alert>
+                        <Alert Class="md:col-span-2">@_generalError</Alert>
                     }
 
                     <FormField Label="Nome" For="fullName">
@@ -66,7 +66,7 @@
                         <FormMessage For="() => _model.Role" />
                     </FormField>
 
-                    <div class="mt-2 flex items-center justify-end gap-2">
+                    <div class="mt-2 flex items-center justify-end gap-2 md:col-span-2">
                         <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="NavigateToList" Disabled="_isSubmitting">Cancelar</Button>
                         <Button Type="submit" Icon="IconName.Save" Loading="_isSubmitting">@(_isSubmitting ? "Salvando..." : "Salvar")</Button>
                     </div>
