@@ -117,6 +117,52 @@ namespace BriefMe.Infrastructure.Migrations
                     b.ToTable("Briefings", (string)null);
                 });
 
+            modelBuilder.Entity("BriefMe.Domain.Entities.BriefingAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BriefingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BriefingId")
+                        .HasDatabaseName("IX_BriefingAttachments_BriefingId");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BriefingAttachments_StorageKey");
+
+                    b.ToTable("BriefingAttachments", (string)null);
+                });
+
             modelBuilder.Entity("BriefMe.Domain.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -299,6 +345,15 @@ namespace BriefMe.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("BriefMe.Domain.Entities.BriefingAttachment", b =>
+                {
+                    b.HasOne("BriefMe.Domain.Entities.Briefing", null)
+                        .WithMany("Attachments")
+                        .HasForeignKey("BriefingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BriefMe.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("BriefMe.Domain.Entities.User", null)
@@ -306,6 +361,11 @@ namespace BriefMe.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BriefMe.Domain.Entities.Briefing", b =>
+                {
+                    b.Navigation("Attachments");
                 });
 #pragma warning restore 612, 618
         }
