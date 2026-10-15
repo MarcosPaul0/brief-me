@@ -53,6 +53,10 @@ public sealed class AuthenticatedApiClient
     public Task<HttpResponseMessage> PutAsJsonAsync<TValue>(string requestUri, TValue value, JsonSerializerOptions options, CancellationToken cancellationToken) =>
         SendAsync(() => new HttpRequestMessage(HttpMethod.Put, requestUri) { Content = JsonContent.Create(value, options: options) }, cancellationToken);
 
+    /// <summary>Puts a body the caller builds (multipart avatar upload); a factory for the same retry reason as <see cref="PostAsync(string, Func{HttpContent}, CancellationToken)"/>.</summary>
+    public Task<HttpResponseMessage> PutAsync(string requestUri, Func<HttpContent> contentFactory, CancellationToken cancellationToken) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Put, requestUri) { Content = contentFactory() }, cancellationToken);
+
     public Task<HttpResponseMessage> PatchAsJsonAsync<TValue>(string requestUri, TValue value, JsonSerializerOptions options, CancellationToken cancellationToken) =>
         SendAsync(() => new HttpRequestMessage(HttpMethod.Patch, requestUri) { Content = JsonContent.Create(value, options: options) }, cancellationToken);
 
