@@ -1,4 +1,5 @@
 using BriefMe.Application.Abstractions.Messaging;
+using BriefMe.Application.UseCases.Briefings;
 using BriefMe.Application.UseCases.Briefings.AcceptBriefingDelivery;
 using BriefMe.Application.UseCases.Briefings.CancelBriefing;
 using BriefMe.Application.UseCases.Briefings.ClaimBriefing;
@@ -11,7 +12,9 @@ using BriefMe.Application.UseCases.Briefings.GetBriefingsByDesigner;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
 using BriefMe.Application.UseCases.Briefings.RequestBriefingChanges;
 using BriefMe.Application.UseCases.Briefings.SubmitBriefing;
+using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
+using BriefMe.Domain.ValueObjects;
 using BriefMe.Web.Contracts.Briefings;
 using BriefMe.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -32,10 +35,25 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     private const string Requester = nameof(UserRole.Requester);
     private const string Designer = nameof(UserRole.Designer);
 
+    // Room for a request carrying the maximum number of maximum-size attachments plus the form fields. Anything
+    // bigger is cut off by Kestrel before it is buffered; below it, the validators answer per file (ATT-04).
+    private const long AttachmentRequestSizeLimit = Briefing.MaxAttachments * AttachmentFormat.MaxSizeBytes + 1024 * 1024;
+
+    /// <summary>
+    /// <c>multipart/form-data</c>: the <see cref="CreateBriefingRequest"/> fields plus zero or more
+    /// <c>attachments</c> file parts (ATT-01).
+    /// </summary>
     [HttpPost]
     [Authorize(Roles = Requester)]
-    public async Task<IActionResult> Create(CreateBriefingRequest request, CancellationToken cancellationToken)
+    [RequestSizeLimit(AttachmentRequestSizeLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = AttachmentRequestSizeLimit)]
+    public async Task<IActionResult> Create(
+        [FromForm] CreateBriefingRequest request,
+        [FromForm] List<IFormFile>? attachments,
+        CancellationToken cancellationToken)
     {
+        await using var uploads = new FormFileUploads(attachments);
+
         var command = new CreateBriefingCommand(
             request.Title,
             request.Priority,
@@ -43,7 +61,8 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
             request.Description,
             request.Objective,
             request.RequestingArea,
-            request.DesiredDeliveryDate);
+            request.DesiredDeliveryDate,
+            uploads.Items);
 
         var result = await sender.Send(command, cancellationToken);
 
@@ -52,10 +71,23 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
             : result.ToProblem(this, "Falha ao criar briefing");
     }
 
+    /// <summary>
+    /// <c>multipart/form-data</c>: the <see cref="UpdateBriefingRequest"/> fields, new <c>attachments</c> file parts
+    /// and one <c>removedAttachmentIds</c> part per attachment to drop (ATT-08).
+    /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = Requester)]
-    public async Task<IActionResult> Update(Guid id, UpdateBriefingRequest request, CancellationToken cancellationToken)
+    [RequestSizeLimit(AttachmentRequestSizeLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = AttachmentRequestSizeLimit)]
+    public async Task<IActionResult> Update(
+        Guid id,
+        [FromForm] UpdateBriefingRequest request,
+        [FromForm] List<IFormFile>? attachments,
+        [FromForm] List<Guid>? removedAttachmentIds,
+        CancellationToken cancellationToken)
     {
+        await using var uploads = new FormFileUploads(attachments);
+
         var command = new EditBriefingCommand(
             id,
             request.Title,
@@ -63,7 +95,9 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
             request.Description,
             request.Objective,
             request.RequestingArea,
-            request.DesiredDeliveryDate);
+            request.DesiredDeliveryDate,
+            uploads.Items,
+            removedAttachmentIds ?? []);
 
         var result = await sender.Send(command, cancellationToken);
 
@@ -175,5 +209,24 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao entregar o briefing");
     }
-}
 
+    /// <summary>
+    /// Opens every posted file as an <see cref="AttachmentUpload"/> and closes them all once the command ran.
+    /// Form-file streams sit on the buffered request body, so they are seekable as the stager requires.
+    /// </summary>
+    private sealed class FormFileUploads : IAsyncDisposable
+    {
+        public FormFileUploads(IReadOnlyList<IFormFile>? files)
+        {
+            Items = (files ?? []).Select(file => new AttachmentUpload(file.FileName, file.OpenReadStream(), file.Length)).ToList();
+        }
+
+        public IReadOnlyList<AttachmentUpload> Items { get; }
+
+        public async ValueTask DisposeAsync()
+        {
+            foreach (var item in Items)
+                await item.Content.DisposeAsync();
+        }
+    }
+}

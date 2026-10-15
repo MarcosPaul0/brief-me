@@ -102,6 +102,40 @@ public class BriefingsControllerTests
             .StartAsync();
     }
 
+    /// <summary>The multipart body <c>POST /briefings</c> expects: the request fields plus one part per file.</summary>
+    private static MultipartFormDataContent CreateForm(params (string FileName, byte[] Bytes)[] files)
+    {
+        var form = new MultipartFormDataContent
+        {
+            { new StringContent("Campanha de lançamento"), nameof(CreateBriefingRequest.Title) },
+            { new StringContent(nameof(Priority.Medium)), nameof(CreateBriefingRequest.Priority) },
+            { new StringContent(Guid.NewGuid().ToString()), nameof(CreateBriefingRequest.CategoryId) },
+            { new StringContent("2026-12-01"), nameof(CreateBriefingRequest.DesiredDeliveryDate) },
+        };
+        AddFiles(form, files);
+        return form;
+    }
+
+    private static MultipartFormDataContent UpdateForm(IReadOnlyList<Guid>? removedIds = null, params (string FileName, byte[] Bytes)[] files)
+    {
+        var form = new MultipartFormDataContent
+        {
+            { new StringContent("Título editado"), nameof(UpdateBriefingRequest.Title) },
+            { new StringContent(nameof(Priority.High)), nameof(UpdateBriefingRequest.Priority) },
+        };
+        foreach (var id in removedIds ?? [])
+            form.Add(new StringContent(id.ToString()), "removedAttachmentIds");
+
+        AddFiles(form, files);
+        return form;
+    }
+
+    private static void AddFiles(MultipartFormDataContent form, IEnumerable<(string FileName, byte[] Bytes)> files)
+    {
+        foreach (var (fileName, bytes) in files)
+            form.Add(new ByteArrayContent(bytes), "attachments", fileName);
+    }
+
     private static void Authenticate(HttpClient client, string token) =>
         client.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
@@ -156,9 +190,7 @@ public class BriefingsControllerTests
         Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
-        var response = await client.PostAsJsonAsync(
-            "/briefings",
-            new CreateBriefingRequest("Campanha de lançamento", Priority.Medium, Guid.NewGuid()));
+        var response = await client.PostAsync("/briefings", CreateForm());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -178,9 +210,7 @@ public class BriefingsControllerTests
         Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
-        var response = await client.PostAsJsonAsync(
-            "/briefings",
-            new CreateBriefingRequest("Campanha de lançamento", Priority.Medium, Guid.NewGuid()));
+        var response = await client.PostAsync("/briefings", CreateForm());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -200,14 +230,90 @@ public class BriefingsControllerTests
         Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
-        var response = await client.PostAsJsonAsync(
-            "/briefings",
-            new CreateBriefingRequest("Campanha de lançamento", Priority.Medium, Guid.NewGuid()));
+        var response = await client.PostAsync("/briefings", CreateForm());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem!.Detail.Should().Be("Categoria não encontrada.");
+    }
+
+    [Fact]
+    public async Task Create_WhenFilesArePosted_SendsThemAsAttachmentUploads()
+    {
+        // Arrange
+        CreateBriefingCommand? captured = null;
+        var received = new List<(string? FileName, long Length)>();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<CreateBriefingCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<BriefingDto>>, CancellationToken>((command, _) =>
+            {
+                captured = (CreateBriefingCommand)command;
+                received.AddRange(captured.Attachments!.Select(a => (a.FileName, a.Length)));
+            })
+            .ReturnsAsync(Result.Success(SampleDto(Guid.NewGuid())));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
+
+        // Act
+        var response = await client.PostAsync("/briefings", CreateForm(("guide.pdf", new byte[10]), ("clip.mp4", new byte[20])));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        received.Should().Equal(("guide.pdf", 10L), ("clip.mp4", 20L));
+        captured!.DesiredDeliveryDate.Should().Be(new DateOnly(2026, 12, 1));
+    }
+
+    [Fact]
+    public async Task Create_WhenNoFilesArePosted_SendsEmptyAttachmentList()
+    {
+        // Arrange
+        CreateBriefingCommand? captured = null;
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<CreateBriefingCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<BriefingDto>>, CancellationToken>((command, _) => captured = (CreateBriefingCommand)command)
+            .ReturnsAsync(Result.Success(SampleDto(Guid.NewGuid())));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
+
+        // Act
+        await client.PostAsync("/briefings", CreateForm());
+
+        // Assert
+        captured!.Attachments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Update_WhenFilesAndRemovedIdsArePosted_SendsBothInTheCommand()
+    {
+        // Arrange
+        EditBriefingCommand? captured = null;
+        var receivedFiles = new List<string?>();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<EditBriefingCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<BriefingDto>>, CancellationToken>((command, _) =>
+            {
+                captured = (EditBriefingCommand)command;
+                receivedFiles.AddRange(captured.NewAttachments!.Select(a => a.FileName));
+            })
+            .ReturnsAsync(Result.Success(SampleDto(Guid.NewGuid())));
+        var removed = new[] { Guid.NewGuid(), Guid.NewGuid() };
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
+
+        // Act
+        var response = await client.PutAsync($"/briefings/{Guid.NewGuid()}", UpdateForm(removed, ("new.webm", new byte[5])));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        captured!.RemovedAttachmentIds.Should().Equal(removed);
+        receivedFiles.Should().Equal("new.webm");
     }
 
     [Fact]
@@ -223,9 +329,7 @@ public class BriefingsControllerTests
         Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
-        var response = await client.PutAsJsonAsync(
-            $"/briefings/{Guid.NewGuid()}",
-            new UpdateBriefingRequest("Título editado", Priority.High));
+        var response = await client.PutAsync($"/briefings/{Guid.NewGuid()}", UpdateForm());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
