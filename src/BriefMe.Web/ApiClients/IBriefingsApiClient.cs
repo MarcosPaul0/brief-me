@@ -35,9 +35,19 @@ public interface IBriefingsApiClient
     /// </summary>
     Task<IReadOnlyList<CategoryListItemDto>> GetCategoriesAsync(CancellationToken cancellationToken = default);
 
-    Task<Result<BriefingDto>> CreateBriefingAsync(CreateBriefingRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Creates a draft, sending the fields and <paramref name="attachments"/> as one multipart request.</summary>
+    Task<Result<BriefingDto>> CreateBriefingAsync(
+        CreateBriefingRequest request,
+        IReadOnlyList<AttachmentFile>? attachments = null,
+        CancellationToken cancellationToken = default);
 
-    Task<Result<BriefingDto>> UpdateBriefingAsync(Guid id, UpdateBriefingRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Edits the fields, adds <paramref name="newAttachments"/> and drops <paramref name="removedAttachmentIds"/> in one request.</summary>
+    Task<Result<BriefingDto>> UpdateBriefingAsync(
+        Guid id,
+        UpdateBriefingRequest request,
+        IReadOnlyList<AttachmentFile>? newAttachments = null,
+        IReadOnlyList<Guid>? removedAttachmentIds = null,
+        CancellationToken cancellationToken = default);
 
     Task<Result<BriefingDto>> SubmitBriefingAsync(Guid id, CancellationToken cancellationToken = default);
 

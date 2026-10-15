@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using BriefMe.Application.Common.Dtos;
 using BriefMe.Domain.Common;
@@ -77,11 +78,50 @@ public sealed class BriefingsApiClient(AuthenticatedApiClient api) : IBriefingsA
         }
     }
 
-    public Task<Result<BriefingDto>> CreateBriefingAsync(CreateBriefingRequest request, CancellationToken cancellationToken = default) =>
-        SendAsync(client => client.PostAsJsonAsync("briefings", request, ApiProblemMapper.JsonOptions, cancellationToken), SaveBriefingFailureMessage, cancellationToken);
+    public Task<Result<BriefingDto>> CreateBriefingAsync(
+        CreateBriefingRequest request,
+        IReadOnlyList<AttachmentFile>? attachments = null,
+        CancellationToken cancellationToken = default)
+    {
+        IEnumerable<(string, string?)> fields =
+        [
+            (nameof(request.Title), request.Title),
+            (nameof(request.Priority), request.Priority.ToString()),
+            (nameof(request.CategoryId), request.CategoryId.ToString()),
+            (nameof(request.Description), request.Description),
+            (nameof(request.Objective), request.Objective),
+            (nameof(request.RequestingArea), request.RequestingArea),
+            (nameof(request.DesiredDeliveryDate), FormatDate(request.DesiredDeliveryDate))
+        ];
 
-    public Task<Result<BriefingDto>> UpdateBriefingAsync(Guid id, UpdateBriefingRequest request, CancellationToken cancellationToken = default) =>
-        SendAsync(client => client.PutAsJsonAsync($"briefings/{id}", request, ApiProblemMapper.JsonOptions, cancellationToken), SaveBriefingFailureMessage, cancellationToken);
+        return SendAsync(
+            client => client.PostAsync("briefings", () => BuildForm(fields, attachments, []), cancellationToken),
+            SaveBriefingFailureMessage,
+            cancellationToken);
+    }
+
+    public Task<Result<BriefingDto>> UpdateBriefingAsync(
+        Guid id,
+        UpdateBriefingRequest request,
+        IReadOnlyList<AttachmentFile>? newAttachments = null,
+        IReadOnlyList<Guid>? removedAttachmentIds = null,
+        CancellationToken cancellationToken = default)
+    {
+        IEnumerable<(string, string?)> fields =
+        [
+            (nameof(request.Title), request.Title),
+            (nameof(request.Priority), request.Priority.ToString()),
+            (nameof(request.Description), request.Description),
+            (nameof(request.Objective), request.Objective),
+            (nameof(request.RequestingArea), request.RequestingArea),
+            (nameof(request.DesiredDeliveryDate), FormatDate(request.DesiredDeliveryDate))
+        ];
+
+        return SendAsync(
+            client => client.PutAsync($"briefings/{id}", () => BuildForm(fields, newAttachments, removedAttachmentIds), cancellationToken),
+            SaveBriefingFailureMessage,
+            cancellationToken);
+    }
 
     public Task<Result<BriefingDto>> SubmitBriefingAsync(Guid id, CancellationToken cancellationToken = default) =>
         SendAsync(client => client.PostAsync($"briefings/{id}/submit", cancellationToken), SubmitBriefingFailureMessage, cancellationToken);
@@ -115,6 +155,42 @@ public sealed class BriefingsApiClient(AuthenticatedApiClient api) : IBriefingsA
         string fallbackMessage,
         CancellationToken cancellationToken) =>
         api.SendForResultAsync<BriefingDto>(send, fallbackMessage, cancellationToken);
+
+    /// <summary>
+    /// The multipart body <c>POST</c>/<c>PUT /briefings</c> bind: one part per non-null field, one <c>attachments</c>
+    /// file part per file and one <c>removedAttachmentIds</c> part per id. Built from a factory each time because
+    /// the refresh-on-401 retry needs a fresh, unsent body.
+    /// </summary>
+    private static MultipartFormDataContent BuildForm(
+        IEnumerable<(string Name, string? Value)> fields,
+        IReadOnlyList<AttachmentFile>? attachments,
+        IReadOnlyList<Guid>? removedAttachmentIds)
+    {
+        var form = new MultipartFormDataContent();
+
+        foreach (var (name, value) in fields)
+        {
+            if (value is not null)
+                form.Add(new StringContent(value), name);
+        }
+
+        foreach (var attachment in attachments ?? [])
+        {
+            var file = new ByteArrayContent(attachment.Content);
+            file.Headers.ContentType = MediaTypeHeaderValue.TryParse(attachment.ContentType, out var mediaType)
+                ? mediaType
+                : new MediaTypeHeaderValue("application/octet-stream");
+            form.Add(file, "attachments", attachment.FileName);
+        }
+
+        foreach (var attachmentId in removedAttachmentIds ?? [])
+            form.Add(new StringContent(attachmentId.ToString()), "removedAttachmentIds");
+
+        return form;
+    }
+
+    private static string? FormatDate(DateOnly? date) =>
+        date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private static Dictionary<string, string?> Paging(int page, int pageSize) => new()
     {

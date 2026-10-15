@@ -401,4 +401,79 @@ public class BriefingsApiClientTests
         // Assert
         result.Type.Should().Be(ErrorType.Conflict);
     }
+
+    /// <summary>Records each request body as text when it is sent (before the retry builds the next one).</summary>
+    private static (BriefingsApiClient Client, List<string> Bodies, RoutedStubHandler Handler) CreateRecordingSut(params HttpStatusCode[] statuses)
+    {
+        var bodies = new List<string>();
+        var queue = new Queue<HttpStatusCode>(statuses);
+        var (client, handler) = CreateSut(request =>
+        {
+            bodies.Add(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            var status = queue.Count > 0 ? queue.Dequeue() : HttpStatusCode.OK;
+            return status == HttpStatusCode.Unauthorized
+                ? new HttpResponseMessage(status)
+                : new HttpResponseMessage(status) { Content = BriefingResponse(Guid.NewGuid()).Content };
+        });
+        return (client, bodies, handler);
+    }
+
+    [Fact]
+    public async Task CreateBriefingAsync_WhenCalled_SendsMultipartWithFieldsAndFiles()
+    {
+        // Arrange
+        var (client, bodies, handler) = CreateRecordingSut(HttpStatusCode.Created);
+        var request = new CreateBriefingRequest("Campanha", Priority.High, Guid.NewGuid(), DesiredDeliveryDate: new DateOnly(2026, 12, 1));
+        AttachmentFile[] files = [new("guia.pdf", "application/pdf", [1, 2]), new("clipe.mp4", "video/mp4", [3])];
+
+        // Act
+        await client.CreateBriefingAsync(request, files);
+
+        // Assert
+        handler.Requests[0].Content!.Headers.ContentType!.MediaType.Should().Be("multipart/form-data");
+        bodies[0].Should()
+            .Contain("name=Title").And.Contain("Campanha")
+            .And.Contain("name=Priority").And.Contain("High")
+            .And.Contain($"name=CategoryId").And.Contain(request.CategoryId.ToString())
+            .And.Contain("name=DesiredDeliveryDate").And.Contain("2026-12-01")
+            .And.Contain("name=attachments; filename=guia.pdf")
+            .And.Contain("name=attachments; filename=clipe.mp4")
+            .And.Contain("Content-Type: video/mp4")
+            .And.NotContain("name=Description");
+    }
+
+    [Fact]
+    public async Task UpdateBriefingAsync_WhenCalled_SendsNewFilesAndOnePartPerRemovedId()
+    {
+        // Arrange
+        var (client, bodies, handler) = CreateRecordingSut(HttpStatusCode.OK);
+        var removed = new[] { Guid.NewGuid(), Guid.NewGuid() };
+
+        // Act
+        await client.UpdateBriefingAsync(Guid.NewGuid(), new UpdateBriefingRequest("Campanha", Priority.Low), [new("novo.webm", "video/webm", [9])], removed);
+
+        // Assert
+        handler.Requests[0].Method.Should().Be(HttpMethod.Put);
+        bodies[0].Should()
+            .Contain("name=attachments; filename=novo.webm")
+            .And.Contain(removed[0].ToString())
+            .And.Contain(removed[1].ToString());
+    }
+
+    [Fact]
+    public async Task CreateBriefingAsync_WhenFirstAttemptIsUnauthorized_RetriesWithTheFullBody()
+    {
+        // Arrange
+        var (client, bodies, _) = CreateRecordingSut(HttpStatusCode.Unauthorized, HttpStatusCode.Created);
+
+        // Act
+        var result = await client.CreateBriefingAsync(
+            new CreateBriefingRequest("Campanha", Priority.Medium, Guid.NewGuid()),
+            [new("guia.pdf", "application/pdf", [1, 2, 3])]);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        bodies.Should().HaveCount(2);
+        bodies[1].Should().Contain("filename=guia.pdf").And.Contain("name=Title");
+    }
 }
