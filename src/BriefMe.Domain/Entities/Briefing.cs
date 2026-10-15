@@ -20,6 +20,11 @@ public class Briefing : AggregateRoot, IAuditableEntity
 {
     public const int DeliveryNoteMaxLength = 4000;
 
+    /// <summary>Most attachments one briefing may hold (ATT-04).</summary>
+    public const int MaxAttachments = 10;
+
+    private readonly List<BriefingAttachment> _attachments = [];
+
     private Briefing(
         Guid id,
         string title,
@@ -78,6 +83,9 @@ public class Briefing : AggregateRoot, IAuditableEntity
     /// cleared by the next <see cref="Deliver"/>, so it is only present while the designer still owes it.
     /// </summary>
     public Justification? ChangeRequestReason { get; private set; }
+
+    /// <summary>Reference files from the requester. Only loaded when the repository is asked for them.</summary>
+    public IReadOnlyCollection<BriefingAttachment> Attachments => _attachments.AsReadOnly();
 
     public DateTime CreatedAt { get; set; }
 
@@ -147,6 +155,48 @@ public class Briefing : AggregateRoot, IAuditableEntity
         Objective = Normalize(objective);
         RequestingArea = Normalize(requestingArea);
         DesiredDeliveryDate = desiredDeliveryDate;
+    }
+
+    /// <summary>
+    /// Records a file already written to storage under <paramref name="storageKey"/>. Same window as
+    /// <see cref="Edit"/>: once a designer claims the briefing, its material is fixed.
+    /// </summary>
+    public BriefingAttachment AddAttachment(string? fileName, string storageKey, AttachmentFormat format, long sizeBytes)
+    {
+        if (!IsOpenForRequester)
+            throw new DomainException(
+                $"Attachment not allowed: the briefing is in {Status}. Attachments can only change in Draft or Submitted.");
+
+        if (_attachments.Count >= MaxAttachments)
+            throw new DomainException($"A briefing can have at most {MaxAttachments} attachments.");
+
+        if (string.IsNullOrWhiteSpace(storageKey))
+            throw new DomainException("Attachment storage key is required.");
+
+        ArgumentNullException.ThrowIfNull(format);
+
+        if (sizeBytes is <= 0 or > AttachmentFormat.MaxSizeBytes)
+            throw new DomainException($"Attachment size must be between 1 byte and {AttachmentFormat.MaxSizeBytes} bytes.");
+
+        var attachment = BriefingAttachment.Create(Id, fileName, storageKey, format, sizeBytes);
+        _attachments.Add(attachment);
+        return attachment;
+    }
+
+    /// <summary>
+    /// Drops one attachment and returns it, so the caller can delete its object once the change is committed.
+    /// </summary>
+    public BriefingAttachment RemoveAttachment(Guid attachmentId)
+    {
+        if (!IsOpenForRequester)
+            throw new DomainException(
+                $"Attachment not allowed: the briefing is in {Status}. Attachments can only change in Draft or Submitted.");
+
+        var attachment = _attachments.Find(a => a.Id == attachmentId)
+            ?? throw new DomainException("Attachment not found in this briefing.");
+
+        _attachments.Remove(attachment);
+        return attachment;
     }
 
     /// <summary>

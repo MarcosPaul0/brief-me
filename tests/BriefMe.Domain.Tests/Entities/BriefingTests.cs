@@ -1,6 +1,7 @@
 using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Exceptions;
+using BriefMe.Domain.ValueObjects;
 using FluentAssertions;
 
 namespace BriefMe.Domain.Tests.Entities;
@@ -467,5 +468,157 @@ public class BriefingTests
 
         // Assert
         act.Should().Throw<DomainException>();
+    }
+
+    private static Briefing DraftWithAttachments(int count)
+    {
+        var briefing = NewDraft();
+        foreach (var index in Enumerable.Range(0, count))
+            briefing.AddAttachment($"file-{index}.pdf", $"briefings/key-{index}.pdf", AttachmentFormat.Pdf, 1024);
+
+        return briefing;
+    }
+
+    [Fact]
+    public void AddAttachment_WhenDraft_AppendsAttachmentWithDetectedFormat()
+    {
+        // Arrange
+        var briefing = NewDraft();
+
+        // Act
+        var attachment = briefing.AddAttachment("reference.mp4", "briefings/abc.mp4", AttachmentFormat.Mp4, 2048);
+
+        // Assert
+        briefing.Attachments.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            attachment.Id,
+            BriefingId = briefing.Id,
+            FileName = "reference.mp4",
+            StorageKey = "briefings/abc.mp4",
+            ContentType = "video/mp4",
+            Kind = AttachmentKind.Video,
+            SizeBytes = 2048L,
+        });
+    }
+
+    [Fact]
+    public void AddAttachment_WhenSubmitted_AppendsAttachment()
+    {
+        // Arrange
+        var briefing = Submitted();
+
+        // Act
+        briefing.AddAttachment("logo.png", "briefings/logo.png", AttachmentFormat.Png, 10);
+
+        // Assert
+        briefing.Attachments.Should().ContainSingle();
+    }
+
+    [Theory]
+    [InlineData(BriefingStatus.InProgress)]
+    [InlineData(BriefingStatus.Delivered)]
+    [InlineData(BriefingStatus.Completed)]
+    [InlineData(BriefingStatus.Cancelled)]
+    public void AddAttachment_WhenNotOpenForRequester_ThrowsDomainException(BriefingStatus status)
+    {
+        // Arrange
+        var briefing = InStatus(status);
+
+        // Act
+        var act = () => briefing.AddAttachment("logo.png", "briefings/logo.png", AttachmentFormat.Png, 10);
+
+        // Assert
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void AddAttachment_WhenAtMaximum_ThrowsDomainException()
+    {
+        // Arrange
+        var briefing = DraftWithAttachments(Briefing.MaxAttachments);
+
+        // Act
+        var act = () => briefing.AddAttachment("one-more.pdf", "briefings/extra.pdf", AttachmentFormat.Pdf, 10);
+
+        // Assert
+        act.Should().Throw<DomainException>();
+        briefing.Attachments.Should().HaveCount(Briefing.MaxAttachments);
+    }
+
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    [InlineData(AttachmentFormat.MaxSizeBytes + 1)]
+    public void AddAttachment_WhenSizeOutOfRange_ThrowsDomainException(long sizeBytes)
+    {
+        // Arrange
+        var briefing = NewDraft();
+
+        // Act
+        var act = () => briefing.AddAttachment("file.pdf", "briefings/file.pdf", AttachmentFormat.Pdf, sizeBytes);
+
+        // Assert
+        act.Should().Throw<DomainException>();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void AddAttachment_WhenStorageKeyIsBlank_ThrowsDomainException(string storageKey)
+    {
+        // Arrange
+        var briefing = NewDraft();
+
+        // Act
+        var act = () => briefing.AddAttachment("file.pdf", storageKey, AttachmentFormat.Pdf, 10);
+
+        // Assert
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void RemoveAttachment_WhenAttachmentExists_RemovesAndReturnsIt()
+    {
+        // Arrange
+        var briefing = NewDraft();
+        var kept = briefing.AddAttachment("kept.png", "briefings/kept.png", AttachmentFormat.Png, 10);
+        var dropped = briefing.AddAttachment("dropped.png", "briefings/dropped.png", AttachmentFormat.Png, 10);
+
+        // Act
+        var removed = briefing.RemoveAttachment(dropped.Id);
+
+        // Assert
+        removed.Should().BeSameAs(dropped);
+        briefing.Attachments.Should().ContainSingle().Which.Should().BeSameAs(kept);
+    }
+
+    [Fact]
+    public void RemoveAttachment_WhenIdIsUnknown_ThrowsDomainException()
+    {
+        // Arrange
+        var briefing = DraftWithAttachments(1);
+
+        // Act
+        var act = () => briefing.RemoveAttachment(Guid.NewGuid());
+
+        // Assert
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void RemoveAttachment_WhenNotOpenForRequester_ThrowsDomainException()
+    {
+        // Arrange
+        var briefing = CompleteDraft();
+        var attachment = briefing.AddAttachment("file.pdf", "briefings/file.pdf", AttachmentFormat.Pdf, 10);
+        briefing.Submit();
+        briefing.Claim(DesignerId);
+
+        // Act
+        var act = () => briefing.RemoveAttachment(attachment.Id);
+
+        // Assert
+        act.Should().Throw<DomainException>();
+        briefing.Attachments.Should().ContainSingle();
     }
 }
