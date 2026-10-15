@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<ISender, Sender>();
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddScoped<BriefingComplementsLoader>();
+        services.AddScoped<BriefingAttachmentStager>();
 
         RegisterHandlers(services, assembly, typeof(IRequestHandler<,>));
 
