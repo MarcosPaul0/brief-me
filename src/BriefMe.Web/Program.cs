@@ -4,6 +4,7 @@ using BriefMe.Infrastructure;
 using BriefMe.Infrastructure.Persistence.Seeding;
 using BriefMe.Web.Auth;
 using BriefMe.Web.Components;
+using BriefMe.Web.Components.Users;
 using BriefMe.Web.Http;
 using BriefMe.Web.ApiClients;
 using BriefMe.Web.ErrorHandling;
@@ -54,24 +55,21 @@ builder.Services.AddScoped<AuthenticatedApiClient>();
 // Blazor data client for the user-listing page (USR-042): runs over the "Api" pipeline above.
 builder.Services.AddScoped<IUsersApiClient, UsersApiClient>();
 
-// Blazor data client for the roles/permissions screen (USR-044): same "Api" pipeline.
-builder.Services.AddScoped<IRolesApiClient, RolesApiClient>();
-
-// Read-only permission catalog, shared by the roles editor and the catalog screen (USR-045).
-builder.Services.AddScoped<IPermissionsApiClient, PermissionsApiClient>();
-
 // Blazor data client for the briefing create/edit form (BRF-013): same "Api" pipeline.
 builder.Services.AddScoped<IBriefingsApiClient, BriefingsApiClient>();
 
-// Blazor data client for the Designer's task board (BRF-033): same "Api" pipeline.
-builder.Services.AddScoped<ITasksApiClient, TasksApiClient>();
+// Admin category management.
+builder.Services.AddScoped<ICategoriesApiClient, CategoriesApiClient>();
 
-// Blazor data client for the in-app notification bell (BRF-054): same "Api" pipeline.
-builder.Services.AddScoped<INotificationsApiClient, NotificationsApiClient>();
+// The signed-in user's own profile and avatar (user-avatar spec), shared by the header and /perfil.
+builder.Services.AddScoped<IProfileApiClient, ProfileApiClient>();
+builder.Services.AddScoped<CurrentUserProfile>();
+
+
 
 var app = builder.Build();
 
-// Apply pending migrations and seed the permission catalog / native data on startup (USR-046+).
+// Apply pending migrations and seed the admin user and default categories on startup.
 await app.Services.MigrateAndSeedAsync();
 
 // Configure the HTTP request pipeline.

@@ -13,7 +13,7 @@ public class GetUsersPagedQueryValidatorTests
     public void Validate_WhenAllFieldsAreValid_HasNoErrors()
     {
         // Arrange
-        var query = new GetUsersPagedQuery(Search: null, Status: null, RoleId: null, Page: 1, PageSize: 10);
+        var query = new GetUsersPagedQuery(Search: null, Status: null, Role: null, Page: 1, PageSize: 10);
 
         // Act
         var result = _validator.TestValidate(query);
@@ -26,7 +26,7 @@ public class GetUsersPagedQueryValidatorTests
     public void Validate_WhenPageIsLessThanOne_HasErrorForPage()
     {
         // Arrange
-        var query = new GetUsersPagedQuery(Search: null, Status: null, RoleId: null, Page: 0, PageSize: 10);
+        var query = new GetUsersPagedQuery(Search: null, Status: null, Role: null, Page: 0, PageSize: 10);
 
         // Act
         var result = _validator.TestValidate(query);
@@ -41,7 +41,7 @@ public class GetUsersPagedQueryValidatorTests
     public void Validate_WhenPageSizeIsOutOfRange_HasErrorForPageSize(int pageSize)
     {
         // Arrange
-        var query = new GetUsersPagedQuery(Search: null, Status: null, RoleId: null, Page: 1, PageSize: pageSize);
+        var query = new GetUsersPagedQuery(Search: null, Status: null, Role: null, Page: 1, PageSize: pageSize);
 
         // Act
         var result = _validator.TestValidate(query);
@@ -57,7 +57,7 @@ public class GetUsersPagedQueryValidatorTests
         var query = new GetUsersPagedQuery(
             Search: null,
             Status: null,
-            RoleId: null,
+            Role: null,
             Page: 1,
             PageSize: 10,
             SortField: (UserSortField)999);

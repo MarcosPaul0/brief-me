@@ -6,9 +6,8 @@ using BriefMe.Domain.Enums;
 namespace BriefMe.Application.UseCases.Briefings.CreateBriefing;
 
 /// <summary>
-/// Registers and saves a briefing as a draft (RF004, RF005, RF006). The requester is the authenticated user
-/// (<c>ICurrentUser</c>) and is not part of the command. Attachments are uploaded via a dedicated use case
-/// (BRF-011).
+/// Saves a new briefing as a draft. The requester is the authenticated user (<c>ICurrentUser</c>) and is not
+/// part of the command. <paramref name="Attachments"/> are optional reference files stored with the draft.
 /// </summary>
 public sealed record CreateBriefingCommand(
     string Title,
@@ -17,4 +16,5 @@ public sealed record CreateBriefingCommand(
     string? Description = null,
     string? Objective = null,
     string? RequestingArea = null,
-    DateOnly? DesiredDeliveryDate = null) : ICommand<BriefingDto>;
+    DateOnly? DesiredDeliveryDate = null,
+    IReadOnlyList<AttachmentUpload>? Attachments = null) : ICommand<BriefingDto>;

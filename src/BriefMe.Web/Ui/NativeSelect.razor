@@ -1,0 +1,23 @@
+@* Native <select> outside an EditForm, bound to the option value as a string. Options go in ChildContent. *@
+<select value="@Value" @onchange="OnChangeAsync" class="@ClassNames.Join(UiClasses.Control, "pr-8", Class)" @attributes="AdditionalAttributes">
+    @ChildContent
+</select>
+
+@code {
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private Task OnChangeAsync(ChangeEventArgs args) => ValueChanged.InvokeAsync(args.Value?.ToString());
+}

@@ -1,0 +1,28 @@
+@* Status tag — DESIGN-clay.md badge-pill: pill shape, caption type, cream fill for the neutral tone. *@
+<span class="@ClassNames.Join("inline-flex items-center whitespace-nowrap rounded-pill px-3 py-1 text-caption", VariantClasses, Class)"
+      @attributes="AdditionalAttributes">
+    @ChildContent
+</span>
+
+@code {
+    [Parameter]
+    public BadgeVariant Variant { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string VariantClasses => Variant switch
+    {
+        BadgeVariant.Info => "bg-info-surface text-info-ink",
+        BadgeVariant.Success => "bg-success-surface text-success-ink",
+        BadgeVariant.Warning => "bg-warning-surface text-warning-ink",
+        BadgeVariant.Danger => "bg-error-surface text-error-ink",
+        _ => "bg-surface-card text-ink"
+    };
+}

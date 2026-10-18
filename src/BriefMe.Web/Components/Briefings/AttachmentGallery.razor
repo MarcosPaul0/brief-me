@@ -1,0 +1,59 @@
+@*
+    The "Anexos" section of a briefing (ATT-14/17): images and PDFs in a grid, audio and video at full width so
+    their players have room. Renders nothing when there are no attachments.
+*@
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Domain.Enums
+
+@if (Attachments.Count > 0)
+{
+    <Card Class="@ClassNames.Join("p-6", Class)">
+        <div class="flex items-center gap-2">
+            <Icon Name="IconName.Paperclip" Class="text-muted" />
+            <CardTitle>Anexos (@Attachments.Count)</CardTitle>
+        </div>
+
+        @if (_tiles.Count > 0)
+        {
+            <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach (var attachment in _tiles)
+                {
+                    <AttachmentPreview @key="attachment.Id" BriefingId="BriefingId" Attachment="attachment" OnReload="OnReload" />
+                }
+            </div>
+        }
+
+        @if (_players.Count > 0)
+        {
+            <div class="mt-4 flex flex-col gap-4">
+                @foreach (var attachment in _players)
+                {
+                    <AttachmentPreview @key="attachment.Id" BriefingId="BriefingId" Attachment="attachment" OnReload="OnReload" />
+                }
+            </div>
+        }
+    </Card>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public Guid BriefingId { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<BriefingAttachmentDto> Attachments { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnReload { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private List<BriefingAttachmentDto> _tiles = [];
+    private List<BriefingAttachmentDto> _players = [];
+
+    protected override void OnParametersSet()
+    {
+        _tiles = [.. Attachments.Where(a => a.Kind is AttachmentKind.Image or AttachmentKind.Pdf)];
+        _players = [.. Attachments.Where(a => a.Kind is AttachmentKind.Audio or AttachmentKind.Video)];
+    }
+}

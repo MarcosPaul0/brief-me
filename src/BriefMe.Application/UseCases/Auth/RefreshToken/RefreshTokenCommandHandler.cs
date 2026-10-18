@@ -19,7 +19,7 @@ public sealed class RefreshTokenCommandHandler(
         if (rotation.IsFailure)
             return Result.Unauthorized<AuthenticationDto>(AuthErrors.InvalidRefreshToken);
 
-        var user = await userRepository.GetByIdWithRolesAndPermissionsAsync(rotation.Value.UserId, cancellationToken);
+        var user = await userRepository.GetByIdAsync(rotation.Value.UserId, cancellationToken);
         if (user is null || user.Status != UserStatus.Active)
         {
             await refreshTokenService.RevokeAsync(rotation.Value.Token, request.IpAddress, cancellationToken);

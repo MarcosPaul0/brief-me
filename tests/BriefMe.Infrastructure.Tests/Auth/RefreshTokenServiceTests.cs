@@ -26,7 +26,7 @@ public class RefreshTokenServiceTests
 
         var context = new AppDbContext(options);
         var repository = new RefreshTokenRepository(context);
-        var unitOfWork = new UnitOfWork(context, new RecordingDomainEventDispatcher());
+        var unitOfWork = new UnitOfWork(context);
         var service = new RefreshTokenService(repository, unitOfWork, Options.Create(CreateSettings()));
 
         return (context, service);

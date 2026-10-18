@@ -1,6 +1,7 @@
 using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
+using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Persistence;
 using BriefMe.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
@@ -10,10 +11,13 @@ namespace BriefMe.Infrastructure.Tests.Persistence.Repositories;
 
 public class BriefingRepositoryTests
 {
-    private static AppDbContext CreateContext()
+    private static AppDbContext CreateContext() => CreateContext(Guid.NewGuid().ToString());
+
+    /// <summary>A context over a named store, so a test can save in one context and read in a fresh one.</summary>
+    private static AppDbContext CreateContext(string databaseName)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName)
             .Options;
 
         return new AppDbContext(options);
@@ -77,8 +81,8 @@ public class BriefingRepositoryTests
 
         context.Briefings.AddRange(
             NewBriefing(requesterId, baseDate, BriefingStatus.Draft),
-            NewBriefing(requesterId, baseDate.AddDays(1), BriefingStatus.AwaitingApproval),
-            NewBriefing(requesterId, baseDate.AddDays(2), BriefingStatus.AwaitingApproval));
+            NewBriefing(requesterId, baseDate.AddDays(1), BriefingStatus.Submitted),
+            NewBriefing(requesterId, baseDate.AddDays(2), BriefingStatus.Submitted));
         await context.SaveChangesAsync();
 
         var repository = new BriefingRepository(context);
@@ -86,13 +90,13 @@ public class BriefingRepositoryTests
         // Act
         var result = await repository.GetByRequesterAsync(
             requesterId,
-            new BriefingFilter(Status: BriefingStatus.AwaitingApproval),
+            new BriefingFilter(Status: BriefingStatus.Submitted),
             page: 1,
             pageSize: 10);
 
         // Assert
         result.Should().HaveCount(2);
-        result.Should().OnlyContain(b => b.Status == BriefingStatus.AwaitingApproval);
+        result.Should().OnlyContain(b => b.Status == BriefingStatus.Submitted);
     }
 
     [Fact]
@@ -179,8 +183,8 @@ public class BriefingRepositoryTests
 
         context.Briefings.AddRange(
             NewBriefing(requesterId, baseDate, BriefingStatus.Draft),
-            NewBriefing(requesterId, baseDate.AddDays(1), BriefingStatus.AwaitingApproval),
-            NewBriefing(requesterId, baseDate.AddDays(2), BriefingStatus.AwaitingApproval));
+            NewBriefing(requesterId, baseDate.AddDays(1), BriefingStatus.Submitted),
+            NewBriefing(requesterId, baseDate.AddDays(2), BriefingStatus.Submitted));
         await context.SaveChangesAsync();
 
         var repository = new BriefingRepository(context);
@@ -188,7 +192,7 @@ public class BriefingRepositoryTests
         // Act
         var totalCount = await repository.CountByRequesterAsync(
             requesterId,
-            new BriefingFilter(Status: BriefingStatus.AwaitingApproval));
+            new BriefingFilter(Status: BriefingStatus.Submitted));
 
         // Assert
         totalCount.Should().Be(2);
@@ -203,114 +207,6 @@ public class BriefingRepositoryTests
 
         // Act
         var result = await repository.GetByRequesterAsync(Guid.NewGuid(), new BriefingFilter(), page: 1, pageSize: 10);
-
-        // Assert
-        result.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task GetPendingApprovalAsync_WhenBriefingsHaveMixedStatuses_ReturnsOnlyAwaitingApproval()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var baseDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        context.Briefings.AddRange(
-            NewBriefing(Guid.NewGuid(), baseDate, BriefingStatus.AwaitingApproval),
-            NewBriefing(Guid.NewGuid(), baseDate.AddDays(1), BriefingStatus.AwaitingApproval),
-            NewBriefing(Guid.NewGuid(), baseDate.AddDays(2)),
-            NewBriefing(Guid.NewGuid(), baseDate.AddDays(3), BriefingStatus.Approved));
-        await context.SaveChangesAsync();
-
-        var repository = new BriefingRepository(context);
-
-        // Act
-        var result = await repository.GetPendingApprovalAsync(page: 1, pageSize: 10);
-
-        // Assert
-        result.Should().HaveCount(2);
-        result.Should().OnlyContain(b => b.Status == BriefingStatus.AwaitingApproval);
-    }
-
-    [Fact]
-    public async Task GetPendingApprovalAsync_WhenQueueHasSeveralBriefings_ReturnsOldestFirst()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var baseDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var oldest = NewBriefing(Guid.NewGuid(), baseDate, BriefingStatus.AwaitingApproval);
-        var middle = NewBriefing(Guid.NewGuid(), baseDate.AddDays(1), BriefingStatus.AwaitingApproval);
-        var newest = NewBriefing(Guid.NewGuid(), baseDate.AddDays(2), BriefingStatus.AwaitingApproval);
-
-        context.Briefings.AddRange(newest, oldest, middle);
-        await context.SaveChangesAsync();
-
-        var repository = new BriefingRepository(context);
-
-        // Act
-        var result = await repository.GetPendingApprovalAsync(page: 1, pageSize: 10);
-
-        // Assert
-        result.Select(b => b.Id).Should().ContainInOrder(oldest.Id, middle.Id, newest.Id);
-    }
-
-    [Fact]
-    public async Task GetPendingApprovalAsync_WhenPaginated_ReturnsRequestedPageWithTotalCount()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var baseDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var oldest = NewBriefing(Guid.NewGuid(), baseDate, BriefingStatus.AwaitingApproval);
-        var middle = NewBriefing(Guid.NewGuid(), baseDate.AddDays(1), BriefingStatus.AwaitingApproval);
-        var newest = NewBriefing(Guid.NewGuid(), baseDate.AddDays(2), BriefingStatus.AwaitingApproval);
-
-        context.Briefings.AddRange(oldest, middle, newest);
-        await context.SaveChangesAsync();
-
-        var repository = new BriefingRepository(context);
-
-        // Act
-        var result = await repository.GetPendingApprovalAsync(page: 2, pageSize: 2);
-
-        // Assert
-        result.Should().ContainSingle().Which.Id.Should().Be(newest.Id);
-    }
-
-    [Fact]
-    public async Task CountPendingApprovalAsync_WhenBriefingsHaveMixedStatuses_CountsAwaitingApprovalOnly()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var baseDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        context.Briefings.AddRange(
-            NewBriefing(Guid.NewGuid(), baseDate, BriefingStatus.AwaitingApproval),
-            NewBriefing(Guid.NewGuid(), baseDate.AddDays(1), BriefingStatus.AwaitingApproval),
-            NewBriefing(Guid.NewGuid(), baseDate.AddDays(2)),
-            NewBriefing(Guid.NewGuid(), baseDate.AddDays(3), BriefingStatus.Approved));
-        await context.SaveChangesAsync();
-
-        var repository = new BriefingRepository(context);
-
-        // Act
-        var totalCount = await repository.CountPendingApprovalAsync();
-
-        // Assert
-        totalCount.Should().Be(2);
-    }
-
-    [Fact]
-    public async Task GetPendingApprovalAsync_WhenNothingIsPending_ReturnsEmpty()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        context.Briefings.Add(NewBriefing(Guid.NewGuid(), new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
-        await context.SaveChangesAsync();
-
-        var repository = new BriefingRepository(context);
-
-        // Act
-        var result = await repository.GetPendingApprovalAsync(page: 1, pageSize: 10);
 
         // Assert
         result.Should().BeEmpty();
@@ -334,174 +230,122 @@ public class BriefingRepositoryTests
         fetched!.Id.Should().Be(briefing.Id);
     }
 
-    [Fact]
-    public async Task AddAsync_ThenGetByIdAsync_RoundTripsRejectionDecision()
+    private static void SetDesigner(Briefing briefing, Guid designerId) =>
+        typeof(Briefing).GetProperty(nameof(Briefing.DesignerId))!.SetValue(briefing, designerId);
+
+    private static Briefing Claimed(Guid designerId, BriefingStatus status, DateOnly? desiredDate, DateTime createdAt)
     {
-        // Arrange
-        await using var context = CreateContext();
-        var repository = new BriefingRepository(context);
-        var managerId = Guid.NewGuid();
-        var briefing = NewBriefing(
-            Guid.NewGuid(),
-            new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            BriefingStatus.AwaitingApproval);
-        briefing.Reject("Budget is not approved for this quarter.", managerId);
-
-        // Act
-        await repository.AddAsync(briefing);
-        await context.SaveChangesAsync();
-        context.ChangeTracker.Clear();
-        var fetched = await repository.GetByIdAsync(briefing.Id);
-
-        // Assert
-        fetched!.DecisionJustification!.Value.Should().Be("Budget is not approved for this quarter.");
-        fetched.ReviewedById.Should().Be(managerId);
+        var briefing = Briefing.Create("Briefing", Priority.Medium, Guid.NewGuid(), Guid.NewGuid(),
+            desiredDeliveryDate: desiredDate);
+        briefing.CreatedAt = createdAt;
+        SetStatus(briefing, status);
+        SetDesigner(briefing, designerId);
+        return briefing;
     }
 
     [Fact]
-    public async Task GetByIdsAsync_WhenSomeIdsExist_ReturnsOnlyTheMatchingBriefings()
+    public async Task GetQueueAsync_WhenBriefingsHaveMixedStates_ReturnsOnlyUnclaimedSubmittedOldestFirst()
     {
         // Arrange
         await using var context = CreateContext();
-        var baseDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var wanted = NewBriefing(Guid.NewGuid(), baseDate);
-        var other = NewBriefing(Guid.NewGuid(), baseDate.AddDays(1));
-
-        context.Briefings.AddRange(wanted, other);
+        var older = NewBriefing(Guid.NewGuid(), new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), BriefingStatus.Submitted);
+        var newer = NewBriefing(Guid.NewGuid(), new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), BriefingStatus.Submitted);
+        var draft = NewBriefing(Guid.NewGuid(), new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc));
+        var claimed = Claimed(Guid.NewGuid(), BriefingStatus.InProgress, null, new DateTime(2025, 12, 2, 0, 0, 0, DateTimeKind.Utc));
+        await context.Briefings.AddRangeAsync(newer, draft, older, claimed);
         await context.SaveChangesAsync();
-
-        var repository = new BriefingRepository(context);
-
-        // Act — one id exists, one does not (a task whose briefing is gone must not fail the lookup).
-        var result = await repository.GetByIdsAsync([wanted.Id, Guid.NewGuid()]);
-
-        // Assert
-        result.Should().ContainSingle().Which.Id.Should().Be(wanted.Id);
-    }
-
-    [Fact]
-    public async Task GetByIdsAsync_WhenIdsAreEmpty_ReturnsEmptyWithoutQuerying()
-    {
-        // Arrange
-        await using var context = CreateContext();
         var repository = new BriefingRepository(context);
 
         // Act
-        var result = await repository.GetByIdsAsync([]);
+        var result = await repository.GetQueueAsync(1, 10);
 
         // Assert
-        result.Should().BeEmpty();
+        result.Select(b => b.Id).Should().Equal(older.Id, newer.Id);
     }
 
     [Fact]
-    public async Task GetDeliveriesByTaskAsync_WhenTaskHasDeliveries_ReturnsThemNewestFirst()
+    public async Task CountQueueAsync_WhenPaged_CountsEveryQueuedBriefing()
     {
         // Arrange
         await using var context = CreateContext();
-        // Deliveries are only accepted while the briefing is in execution (RF022).
-        var briefing = NewBriefing(
-            Guid.NewGuid(),
-            new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            BriefingStatus.InProgress);
-        var taskId = Guid.NewGuid();
-        var uploaderId = Guid.NewGuid();
-        var baseDate = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        await context.Briefings.AddRangeAsync(
+            NewBriefing(Guid.NewGuid(), DateTime.UtcNow, BriefingStatus.Submitted),
+            NewBriefing(Guid.NewGuid(), DateTime.UtcNow, BriefingStatus.Submitted),
+            NewBriefing(Guid.NewGuid(), DateTime.UtcNow, BriefingStatus.Cancelled));
+        await context.SaveChangesAsync();
 
-        var first = StampDelivery(briefing.AddDelivery(taskId, "v1.png", "key-1", 10, uploaderId), baseDate);
-        var second = StampDelivery(briefing.AddDelivery(taskId, "v2.png", "key-2", 20, uploaderId), baseDate.AddHours(1));
+        // Act
+        var result = await new BriefingRepository(context).CountQueueAsync();
+
+        // Assert
+        result.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetByDesignerAsync_WhenDesignerHasWork_ReturnsOnlyTheirsByDesiredDateWithUndatedLast()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var designerId = Guid.NewGuid();
+        var created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var undated = Claimed(designerId, BriefingStatus.InProgress, null, created);
+        var later = Claimed(designerId, BriefingStatus.InProgress, new DateOnly(2026, 3, 1), created);
+        var sooner = Claimed(designerId, BriefingStatus.Delivered, new DateOnly(2026, 2, 1), created);
+        var someoneElses = Claimed(Guid.NewGuid(), BriefingStatus.InProgress, new DateOnly(2026, 1, 15), created);
+        await context.Briefings.AddRangeAsync(undated, later, sooner, someoneElses);
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await new BriefingRepository(context).GetByDesignerAsync(designerId, null, 1, 10);
+
+        // Assert
+        result.Select(b => b.Id).Should().Equal(sooner.Id, later.Id, undated.Id);
+    }
+
+    [Fact]
+    public async Task CountByDesignerAsync_WhenFilteredByStatus_CountsMatchingOnly()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var designerId = Guid.NewGuid();
+        await context.Briefings.AddRangeAsync(
+            Claimed(designerId, BriefingStatus.InProgress, null, DateTime.UtcNow),
+            Claimed(designerId, BriefingStatus.Delivered, null, DateTime.UtcNow));
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await new BriefingRepository(context).CountByDesignerAsync(designerId, BriefingStatus.Delivered);
+
+        // Assert
+        result.Should().Be(1);
+    }
+
+    private static async Task<Briefing> SeedDraftWithAttachmentsAsync(string databaseName, params string[] fileNames)
+    {
+        await using var context = CreateContext(databaseName);
+        var briefing = Briefing.Create("Briefing", Priority.Medium, Guid.NewGuid(), Guid.NewGuid());
+        foreach (var fileName in fileNames)
+            briefing.AddAttachment(fileName, $"briefings/{Guid.NewGuid():N}.pdf", AttachmentFormat.Pdf, 100);
 
         context.Briefings.Add(briefing);
         await context.SaveChangesAsync();
-        context.ChangeTracker.Clear();
-
-        var repository = new BriefingRepository(context);
-
-        // Act
-        var result = await repository.GetDeliveriesByTaskAsync(taskId);
-
-        // Assert
-        result.Select(a => a.Id).Should().ContainInOrder(second.Id, first.Id);
+        return briefing;
     }
 
     [Fact]
-    public async Task GetDeliveriesByTaskAsync_WhenBriefingAlsoHasOtherAttachments_ReturnsOnlyThatTasksDeliveries()
+    public async Task GetByIdWithAttachmentsAsync_WhenBriefingHasAttachments_LoadsThem()
     {
         // Arrange
-        await using var context = CreateContext();
-        var briefing = NewBriefing(Guid.NewGuid(), new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        var taskId = Guid.NewGuid();
-        var uploaderId = Guid.NewGuid();
-
-        // A reference file attached to the briefing itself (RF005) — only accepted before execution starts.
-        briefing.AddAttachment("referencia.pdf", "key-3", 10, uploaderId);
-        SetStatus(briefing, BriefingStatus.InProgress);
-
-        var wanted = briefing.AddDelivery(taskId, "v1.png", "key-1", 10, uploaderId);
-        // Another task's delivery on the same briefing.
-        briefing.AddDelivery(Guid.NewGuid(), "outra.png", "key-2", 10, uploaderId);
-
-        context.Briefings.Add(briefing);
-        await context.SaveChangesAsync();
-        context.ChangeTracker.Clear();
-
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "a.pdf", "b.pdf");
+        await using var context = CreateContext(databaseName);
         var repository = new BriefingRepository(context);
 
         // Act
-        var result = await repository.GetDeliveriesByTaskAsync(taskId);
+        var briefing = await repository.GetByIdWithAttachmentsAsync(seeded.Id);
 
         // Assert
-        result.Should().ContainSingle().Which.Id.Should().Be(wanted.Id);
-    }
-
-    [Fact]
-    public async Task GetByIdWithAttachmentsAsync_WhenBriefingAlsoHasDeliveries_ReturnsOnlyItsOwnAttachments()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var briefing = NewBriefing(Guid.NewGuid(), new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        var uploaderId = Guid.NewGuid();
-
-        var reference = briefing.AddAttachment("referencia.pdf", "key-1", 10, uploaderId);
-        SetStatus(briefing, BriefingStatus.InProgress);
-        briefing.AddDelivery(Guid.NewGuid(), "entrega.png", "key-2", 10, uploaderId);
-
-        context.Briefings.Add(briefing);
-        await context.SaveChangesAsync();
-        context.ChangeTracker.Clear();
-
-        var repository = new BriefingRepository(context);
-
-        // Act
-        var result = await repository.GetByIdWithAttachmentsAsync(briefing.Id);
-
-        // Assert
-        result!.Attachments.Should().ContainSingle().Which.Id.Should().Be(reference.Id);
-    }
-
-    [Fact]
-    public async Task GetByIdWithAttachmentsAsync_WhenBriefingHasSeveralAttachments_ReturnsThemNewestFirst()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var briefing = NewBriefing(Guid.NewGuid(), new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        var uploaderId = Guid.NewGuid();
-
-        var first = briefing.AddAttachment("primeiro.pdf", "key-1", 10, uploaderId);
-        // UploadedAt is stamped by the entity from the clock, so a second file needs a distinguishable moment.
-        await Task.Delay(10);
-        var second = briefing.AddAttachment("segundo.pdf", "key-2", 10, uploaderId);
-
-        context.Briefings.Add(briefing);
-        await context.SaveChangesAsync();
-        context.ChangeTracker.Clear();
-
-        var repository = new BriefingRepository(context);
-
-        // Act
-        var result = await repository.GetByIdWithAttachmentsAsync(briefing.Id);
-
-        // Assert
-        result!.Attachments.Select(a => a.Id).Should().ContainInOrder(second.Id, first.Id);
+        briefing!.Attachments.Select(a => a.FileName).Should().BeEquivalentTo(["a.pdf", "b.pdf"]);
     }
 
     [Fact]
@@ -512,34 +356,94 @@ public class BriefingRepositoryTests
         var repository = new BriefingRepository(context);
 
         // Act
-        var result = await repository.GetByIdWithAttachmentsAsync(Guid.NewGuid());
+        var briefing = await repository.GetByIdWithAttachmentsAsync(Guid.NewGuid());
 
         // Assert
-        result.Should().BeNull();
+        briefing.Should().BeNull();
     }
 
     [Fact]
-    public async Task GetDeliveriesByTaskAsync_WhenTaskHasNoDeliveries_ReturnsEmpty()
+    public async Task GetByIdAsync_WhenBriefingHasAttachments_DoesNotLoadThem()
     {
         // Arrange
-        await using var context = CreateContext();
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "a.pdf");
+        await using var context = CreateContext(databaseName);
         var repository = new BriefingRepository(context);
 
         // Act
-        var result = await repository.GetDeliveriesByTaskAsync(Guid.NewGuid());
+        var briefing = await repository.GetByIdAsync(seeded.Id);
 
         // Assert
-        result.Should().BeEmpty();
+        briefing!.Attachments.Should().BeEmpty();
     }
 
-    /// <summary>
-    /// <c>Attachment.UploadedAt</c> is stamped by the entity itself, so two files created in the same tick
-    /// cannot express an order. Setting it directly is what makes the ordering under test observable.
-    /// </summary>
-    private static Attachment StampDelivery(Attachment attachment, DateTime uploadedAt)
+    [Fact]
+    public async Task SaveChanges_WhenAttachmentAddedToUpdatedTrackedBriefing_InsertsIt()
     {
-        typeof(Attachment).GetProperty(nameof(Attachment.UploadedAt))!.SetValue(attachment, uploadedAt);
+        // Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "a.pdf");
+        await using (var context = CreateContext(databaseName))
+        {
+            var repository = new BriefingRepository(context);
+            var briefing = await repository.GetByIdWithAttachmentsAsync(seeded.Id);
+            repository.Update(briefing!);
+            briefing!.AddAttachment("b.png", "briefings/b.png", AttachmentFormat.Png, 50);
 
-        return attachment;
+            // Act
+            await context.SaveChangesAsync();
+        }
+
+        // Assert
+        await using var verify = CreateContext(databaseName);
+        var reloaded = await new BriefingRepository(verify).GetByIdWithAttachmentsAsync(seeded.Id);
+        reloaded!.Attachments.Select(a => a.FileName).Should().BeEquivalentTo(["a.pdf", "b.png"]);
+    }
+
+    [Fact]
+    public async Task SaveChanges_WhenAttachmentRemovedFromTrackedBriefing_DeletesIt()
+    {
+        // Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "a.pdf", "b.pdf");
+        var droppedId = seeded.Attachments.Single(a => a.FileName == "a.pdf").Id;
+        await using (var context = CreateContext(databaseName))
+        {
+            var repository = new BriefingRepository(context);
+            var briefing = await repository.GetByIdWithAttachmentsAsync(seeded.Id);
+            briefing!.RemoveAttachment(droppedId);
+
+            // Act
+            await context.SaveChangesAsync();
+        }
+
+        // Assert
+        await using var verify = CreateContext(databaseName);
+        verify.Set<BriefingAttachment>().Select(a => a.FileName).Should().BeEquivalentTo(["b.pdf"]);
+    }
+
+    [Fact]
+    public async Task SaveChanges_WhenUpdatedBriefingSwapsAttachments_DeletesRemovedAndInsertsAdded()
+    {
+        // Arrange — same order as EditBriefingCommandHandler: Update, then remove and add.
+        var databaseName = Guid.NewGuid().ToString();
+        var seeded = await SeedDraftWithAttachmentsAsync(databaseName, "old.pdf", "kept.pdf");
+        var droppedId = seeded.Attachments.Single(a => a.FileName == "old.pdf").Id;
+        await using (var context = CreateContext(databaseName))
+        {
+            var repository = new BriefingRepository(context);
+            var briefing = await repository.GetByIdWithAttachmentsAsync(seeded.Id);
+            repository.Update(briefing!);
+            briefing!.RemoveAttachment(droppedId);
+            briefing.AddAttachment("new.webm", "briefings/new.webm", AttachmentFormat.WebM, 50);
+
+            // Act
+            await context.SaveChangesAsync();
+        }
+
+        // Assert
+        await using var verify = CreateContext(databaseName);
+        verify.Set<BriefingAttachment>().Select(a => a.FileName).Should().BeEquivalentTo(["kept.pdf", "new.webm"]);
     }
 }

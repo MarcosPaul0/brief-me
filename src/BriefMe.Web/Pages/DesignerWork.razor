@@ -1,0 +1,99 @@
+@page "/briefings/meu-trabalho"
+@attribute [Authorize(Roles = nameof(UserRole.Designer))]
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Web.Contracts.Common
+@using Microsoft.AspNetCore.Authorization
+@inject IBriefingsApiClient BriefingsApi
+@inject AuthSessionStore SessionStore
+@inject NavigationManager NavigationManager
+
+<PageTitle>Meu trabalho</PageTitle>
+
+<PageContainer>
+    <PageHeader Title="Meu trabalho" Description="Briefings que você assumiu, pela data de entrega desejada.">
+        <Actions>
+            <Button Href="briefings/fila" Icon="IconName.Inbox">Ver fila de briefings</Button>
+        </Actions>
+    </PageHeader>
+
+    <form @onsubmit="ApplyFilterAsync" @onsubmit:preventDefault="true" class="mt-8 flex flex-wrap items-end gap-3">
+        <FormField Label="Status" For="status">
+            <NativeSelect id="status" @bind-Value="_statusFilter">
+                <option value="">Todos</option>
+                @foreach (var status in StatusOptions)
+                {
+                    <option value="@status.ToString()">@BriefingLabels.Status(status)</option>
+                }
+            </NativeSelect>
+        </FormField>
+
+        <Button Type="submit" Variant="ButtonVariant.Outline" Icon="IconName.Filter">Aplicar</Button>
+    </form>
+
+    <div class="mt-5">
+        <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowRequester="true"
+                           EmptyTitle="Nenhum briefing por aqui" EmptyHint="Assuma um briefing na fila para começar."
+                           OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
+            <RowActions Context="briefing">
+                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Eye" OnClick="() => NavigateToDetail(briefing.Id)">Abrir</Button>
+            </RowActions>
+        </BriefingListTable>
+    </div>
+</PageContainer>
+
+@code {
+    private const int PageSize = 20;
+
+    // The states a claimed briefing can be in.
+    private static readonly BriefingStatus[] StatusOptions =
+        [BriefingStatus.InProgress, BriefingStatus.Delivered, BriefingStatus.Completed];
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private PagedResponse<BriefingListItemDto>? _page;
+    private int _currentPage = 1;
+    private string _statusFilter = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+        await LoadAsync();
+    }
+
+    private async Task ApplyFilterAsync()
+    {
+        _currentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _currentPage = page;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        var status = Enum.TryParse<BriefingStatus>(_statusFilter, out var parsed) ? parsed : (BriefingStatus?)null;
+        var result = await BriefingsApi.GetAssignedAsync(_currentPage, PageSize, status);
+        if (result.IsSuccess)
+        {
+            _page = result.Value;
+        }
+        else
+        {
+            _page = null;
+            _errorMessage = result.Error;
+        }
+
+        _isLoading = false;
+    }
+
+    private void NavigateToDetail(Guid briefingId) => NavigationManager.NavigateTo($"/briefings/{briefingId}/detalhes");
+}

@@ -42,23 +42,24 @@ public class BriefingConfiguration : IEntityTypeConfiguration<Briefing>
 
         builder.Property(b => b.CategoryId).IsRequired();
         builder.Property(b => b.RequesterId).IsRequired();
+        builder.Property(b => b.DesignerId);
 
-        // Approval decision (BRF-015). The converter only runs for non-null values, hence the suppression.
-        builder.Property(b => b.DecisionJustification)
+        builder.Property(b => b.DeliveryNote).HasMaxLength(Briefing.DeliveryNoteMaxLength);
+        builder.Property(b => b.DeliveredAt);
+
+        // The converter only runs for non-null values, hence the suppression.
+        builder.Property(b => b.ChangeRequestReason)
             .HasConversion(
                 justification => justification!.Value,
                 value => Justification.FromPersistedValue(value))
             .HasMaxLength(Justification.MaxLength);
 
-        builder.Property(b => b.ReviewedById);
-        builder.Property(b => b.ReviewedAt);
+        builder.Ignore(b => b.IsOpenForRequester);
 
-        // Instant, not a date: it records when the monitor detected the breach (RF028), unlike
-        // DesiredDeliveryDate.
-        builder.Property(b => b.OverdueSince);
-
-        // Derived from OverdueSince; a column of its own would be a second axis of the same state.
-        builder.Ignore(b => b.IsOverdue);
+        // Optimistic concurrency on Postgres' xmin system column: two designers claiming the same briefing
+        // load the same version, and only the first commit matches it (Npgsql maps a uint row version to xmin,
+        // so no column is added).
+        builder.Property<uint>("xmin").IsRowVersion();
 
         builder.Property(b => b.CreatedAt).IsRequired();
         builder.Property(b => b.CreatedBy).HasMaxLength(100);
@@ -70,9 +71,18 @@ public class BriefingConfiguration : IEntityTypeConfiguration<Briefing>
             .HasForeignKey(b => b.RequesterId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Category (RF040): logical FK. The physical constraint arrives with BRF-059 (Categories table).
-        // For now just the index, without HasOne, to keep the migration self-contained.
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(b => b.DesignerId)
+            .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<Category>()
+            .WithMany()
+            .HasForeignKey(b => b.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Attachments are a composition: no navigation back, deleted with the briefing, and a child dropped
+        // from the collection is deleted as an orphan.
         builder.HasMany(b => b.Attachments)
             .WithOne()
             .HasForeignKey(a => a.BriefingId)
@@ -84,8 +94,7 @@ public class BriefingConfiguration : IEntityTypeConfiguration<Briefing>
         builder.HasIndex(b => b.Status).HasDatabaseName("IX_Briefings_Status");
         builder.HasIndex(b => b.CategoryId).HasDatabaseName("IX_Briefings_CategoryId");
 
-        // Serves both sides of the overdue flag: IS NULL for the monitor's sweep (RF028) and IS NOT NULL for
-        // the overdue list of RF030 (BRF-045).
-        builder.HasIndex(b => b.OverdueSince).HasDatabaseName("IX_Briefings_OverdueSince");
+        // Serves both the designer queue (Submitted, no designer) and "my work" (by designer).
+        builder.HasIndex(b => new { b.Status, b.DesignerId }).HasDatabaseName("IX_Briefings_Status_DesignerId");
     }
 }

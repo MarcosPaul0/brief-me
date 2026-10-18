@@ -62,22 +62,5 @@ internal static class ApiProblemMapper
         };
     }
 
-    /// <summary>
-    /// Same mapping for a call that answers nothing on success — <c>POST /notifications/read</c> and its
-    /// <c>204</c> (BRF-054). Delegates to the generic overload and drops the (absent) value, so the status
-    /// and <c>ProblemDetails</c> handling stays written once.
-    /// </summary>
-    public static async Task<Result> MapFailureAsync(
-        HttpResponseMessage response,
-        string fallbackMessage,
-        CancellationToken cancellationToken = default)
-    {
-        var failure = await MapFailureAsync<object>(response, fallbackMessage, cancellationToken: cancellationToken);
-
-        return failure.Errors.Count > 0
-            ? Result.Failure(failure.Errors)
-            : Result.Failure(failure.Error ?? fallbackMessage, failure.Type);
-    }
-
     private sealed record ApiProblem(int? Status, string? Detail, Dictionary<string, string[]>? Errors);
 }

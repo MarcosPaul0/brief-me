@@ -30,6 +30,14 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Status)
             .IsRequired();
 
+        builder.Property(u => u.Role)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .IsRequired();
+
+        builder.Property(u => u.AvatarKey).HasMaxLength(300);
+        builder.Property(u => u.AvatarContentType).HasMaxLength(50);
+
         builder.Property(u => u.CreatedAt).IsRequired();
         builder.Property(u => u.CreatedBy).HasMaxLength(100);
         builder.Property(u => u.UpdatedBy).HasMaxLength(100);
@@ -43,7 +51,5 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasFilter("\"IsDeleted\" = false");
 
         builder.HasQueryFilter(u => !u.IsDeleted);
-
-        builder.Navigation(u => u.UserRoles).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

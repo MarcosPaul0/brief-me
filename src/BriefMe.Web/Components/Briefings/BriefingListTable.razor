@@ -1,0 +1,106 @@
+@*
+    Tabela de briefings compartilhada pelas três listas (meus briefings, fila e meu trabalho). Cuida de
+    carregando/erro/vazio e da paginação; cada página decide colunas opcionais e as ações da linha.
+*@
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Web.Contracts.Common
+
+<Card Class="overflow-hidden">
+    @if (IsLoading)
+    {
+        <LoadingState Text="Carregando briefings..." />
+    }
+    else if (ErrorMessage is not null)
+    {
+        <EmptyState Title="@ErrorMessage" Tone="EmptyStateTone.Danger">
+            <Button Variant="ButtonVariant.Secondary" Icon="IconName.RotateCcw" OnClick="OnRetry">Tentar novamente</Button>
+        </EmptyState>
+    }
+    else if (Page is null || Page.Items.Count == 0)
+    {
+        <EmptyState Title="@EmptyTitle" Description="@EmptyHint" Icon="IconName.Inbox" />
+    }
+    else
+    {
+        <Table Class="min-w-[860px]">
+            <Header>
+                <TableHead>Título</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Prioridade</TableHead>
+                <TableHead>Categoria</TableHead>
+                @if (ShowRequester)
+                {
+                    <TableHead>Solicitante</TableHead>
+                }
+                @if (ShowDesigner)
+                {
+                    <TableHead>Designer</TableHead>
+                }
+                <TableHead>Entrega desejada</TableHead>
+                <TableHead Class="text-right">Ações</TableHead>
+            </Header>
+            <ChildContent>
+                @foreach (var briefing in Page.Items)
+                {
+                    <TableRow>
+                        <TableCell Primary="true">@briefing.Title</TableCell>
+                        <TableCell>
+                            <Badge Variant="BriefingLabels.StatusBadgeVariant(briefing.Status)">@BriefingLabels.Status(briefing.Status)</Badge>
+                        </TableCell>
+                        <TableCell>@BriefingLabels.Priority(briefing.Priority)</TableCell>
+                        <TableCell>@(briefing.CategoryName ?? "—")</TableCell>
+                        @if (ShowRequester)
+                        {
+                            <TableCell>@(briefing.RequesterName ?? "—")</TableCell>
+                        }
+                        @if (ShowDesigner)
+                        {
+                            <TableCell>@(briefing.DesignerName ?? "—")</TableCell>
+                        }
+                        <TableCell>@(briefing.DesiredDeliveryDate?.ToString("dd/MM/yyyy") ?? "—")</TableCell>
+                        <TableCell Class="text-right">
+                            <div class="flex items-center justify-end gap-3">
+                                @RowActions(briefing)
+                            </div>
+                        </TableCell>
+                    </TableRow>
+                }
+            </ChildContent>
+        </Table>
+
+        <Pagination Page="Page.Page" TotalPages="Page.TotalPages" TotalCount="Page.TotalCount" ItemLabel="briefing(s)"
+                    OnPageChange="OnPageChange" />
+    }
+</Card>
+
+@code {
+    [Parameter]
+    public PagedResponse<BriefingListItemDto>? Page { get; set; }
+
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    [Parameter]
+    public bool ShowRequester { get; set; }
+
+    [Parameter]
+    public bool ShowDesigner { get; set; }
+
+    [Parameter]
+    public string EmptyTitle { get; set; } = "Nenhum briefing encontrado";
+
+    [Parameter]
+    public string? EmptyHint { get; set; }
+
+    [Parameter, EditorRequired]
+    public RenderFragment<BriefingListItemDto> RowActions { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<int> OnPageChange { get; set; }
+
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+}

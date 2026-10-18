@@ -1,0 +1,240 @@
+@* One briefing and the actions its viewer can take now. Route note: /briefings/{id}/detalhes, never
+   /briefings/{id} — that path is BriefingsController's GET and the two would collide. *@
+@page "/briefings/{Id:guid}/detalhes"
+@attribute [Authorize(Roles = "Requester,Designer")]
+@using System.Security.Claims
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Domain.Common
+@using Microsoft.AspNetCore.Authorization
+@inject IBriefingsApiClient BriefingsApi
+@inject AuthSessionStore SessionStore
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(_briefing?.Title ?? "Briefing")</PageTitle>
+
+<PageContainer>
+    <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Class="-ml-3" Icon="IconName.ArrowLeft" OnClick="NavigateBack">Voltar</Button>
+
+    @if (_isLoading)
+    {
+        <Card Class="mt-5">
+            <LoadingState />
+        </Card>
+    }
+    else if (_loadError is not null || _briefing is null)
+    {
+        <Card Class="mt-5">
+            <EmptyState Title="@(_loadError ?? "Briefing não encontrado")" Icon="IconName.FileText" />
+        </Card>
+    }
+    else
+    {
+        <PageHeader Class="mt-5" Title="@_briefing.Title"
+                    Description="@($"{_briefing.CategoryName ?? "—"} • Prioridade {BriefingLabels.Priority(_briefing.Priority)}")">
+            <Actions>
+                <Badge Variant="BriefingLabels.StatusBadgeVariant(_briefing.Status)">@BriefingLabels.Status(_briefing.Status)</Badge>
+            </Actions>
+        </PageHeader>
+
+        @if (_actionError is not null)
+        {
+            <Alert Class="mt-5">@_actionError</Alert>
+        }
+
+        @if (_briefing.ChangeRequestReason is not null)
+        {
+            <Alert Variant="AlertVariant.Warning" Title="Ajustes solicitados pelo solicitante" Class="mt-5">
+                <p class="whitespace-pre-line">@_briefing.ChangeRequestReason</p>
+            </Alert>
+        }
+
+        @if (_briefing.DeliveryNote is not null)
+        {
+            <Card Tone="CardTone.Cream" Class="mt-5 p-6">
+                <p class="text-caption-uppercase uppercase text-muted">
+                    Entrega @(_briefing.DeliveredAt is { } at ? $"em {at.ToLocalTime():dd/MM/yyyy HH:mm}" : "")
+                </p>
+                @if (Uri.TryCreate(_briefing.DeliveryNote, UriKind.Absolute, out var link) && (link.Scheme == Uri.UriSchemeHttp || link.Scheme == Uri.UriSchemeHttps))
+                {
+                    <a href="@link" target="_blank" rel="noopener noreferrer"
+                       class="mt-2 block break-all text-body-md font-semibold text-ink underline underline-offset-4">@_briefing.DeliveryNote</a>
+                }
+                else
+                {
+                    <p class="mt-2 whitespace-pre-line text-body-md text-body-strong">@_briefing.DeliveryNote</p>
+                }
+            </Card>
+        }
+
+        <Card Class="mt-5 p-6">
+            <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                @DetailItem(("Solicitante", _briefing.RequesterName ?? "—", false))
+                @DetailItem(("Designer", _briefing.DesignerName ?? "Ainda não assumido", false))
+                @DetailItem(("Área solicitante", _briefing.RequestingArea ?? "—", false))
+                @DetailItem(("Entrega desejada", _briefing.DesiredDeliveryDate?.ToString("dd/MM/yyyy") ?? "—", false))
+                @DetailItem(("Objetivo", _briefing.Objective ?? "—", true))
+                @DetailItem(("Descrição", _briefing.Description ?? "—", true))
+            </dl>
+        </Card>
+
+        <AttachmentGallery Class="mt-5" BriefingId="_briefing.Id" Attachments="_briefing.Attachments" OnReload="LoadAsync" />
+
+        @if (IsRequester && _briefing.Status is BriefingStatus.Draft or BriefingStatus.Submitted)
+        {
+            <div class="mt-5 flex flex-wrap justify-end gap-2">
+                <Button Variant="ButtonVariant.Secondary" Icon="IconName.Ban" OnClick="CancelAsync" Disabled="_isBusy">Cancelar briefing</Button>
+                <Button Variant="ButtonVariant.Outline" Icon="IconName.Pencil" OnClick="NavigateToEdit" Disabled="_isBusy">Editar</Button>
+                @if (_briefing.Status is BriefingStatus.Draft)
+                {
+                    <Button Icon="IconName.Send" OnClick="SubmitAsync" Disabled="_isBusy">Enviar para o design</Button>
+                }
+            </div>
+        }
+
+        @if (IsRequester && _briefing.Status is BriefingStatus.Delivered)
+        {
+            <Card Class="mt-5 flex flex-col gap-3 p-6">
+                <CardTitle>A entrega atende ao briefing?</CardTitle>
+                <FormField Label="Se não, descreva o que ajustar" For="reason">
+                    <Textarea id="reason" rows="3" @bind-Value="_reason" disabled="@_isBusy" />
+                </FormField>
+                <div class="flex flex-wrap justify-end gap-2">
+                    <Button Variant="ButtonVariant.Outline" Icon="IconName.RotateCcw" OnClick="RequestChangesAsync" Disabled="@(_isBusy || string.IsNullOrWhiteSpace(_reason))">
+                        Solicitar ajustes
+                    </Button>
+                    <Button Icon="IconName.Check" OnClick="AcceptAsync" Disabled="_isBusy">Aceitar entrega</Button>
+                </div>
+            </Card>
+        }
+
+        @if (IsDesigner && _briefing.Status is BriefingStatus.Submitted && _briefing.DesignerId is null)
+        {
+            <div class="mt-5 flex justify-end">
+                <Button Icon="IconName.Hand" OnClick="ClaimAsync" Disabled="_isBusy">Assumir briefing</Button>
+            </div>
+        }
+
+        @if (IsAssignee && _briefing.Status is BriefingStatus.InProgress)
+        {
+            <Card Class="mt-5 flex flex-col gap-3 p-6">
+                <FormField Label="Entrega" For="note" Description="Cole o link dos arquivos ou descreva o que foi entregue.">
+                    <Textarea id="note" rows="3" @bind-Value="_deliveryNote" disabled="@_isBusy" />
+                </FormField>
+                <div class="flex justify-end">
+                    <Button Icon="IconName.PackageCheck" OnClick="DeliverAsync" Disabled="@(_isBusy || string.IsNullOrWhiteSpace(_deliveryNote))">Entregar</Button>
+                </div>
+            </Card>
+        }
+    }
+</PageContainer>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private bool _isLoading = true;
+    private string? _loadError;
+    private string? _actionError;
+    private bool _isBusy;
+    private BriefingDetailDto? _briefing;
+    private ClaimsPrincipal _user = new();
+    private string? _reason;
+    private string? _deliveryNote;
+
+    private bool IsRequester => _user.IsInRole(nameof(UserRole.Requester));
+
+    private bool IsDesigner => _user.IsInRole(nameof(UserRole.Designer));
+
+    private bool IsAssignee =>
+        IsDesigner && _briefing?.DesignerId is { } designerId
+        && _user.FindFirst(ClaimTypes.NameIdentifier)?.Value == designerId.ToString();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No token before the interactive restore — same guard as the list screens.
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+
+        if (AuthenticationState is not null)
+            _user = (await AuthenticationState).User;
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await BriefingsApi.GetBriefingAsync(Id);
+
+        if (result.IsSuccess)
+        {
+            _briefing = result.Value;
+            _loadError = null;
+        }
+        else
+        {
+            _loadError = result.Type switch
+            {
+                ErrorType.NotFound => "Briefing não encontrado",
+                ErrorType.Forbidden => "Você não tem acesso a este briefing",
+                _ => result.Error
+            };
+        }
+
+        _isLoading = false;
+    }
+
+    private Task SubmitAsync() => RunAsync(() => BriefingsApi.SubmitBriefingAsync(Id));
+
+    private Task CancelAsync() => RunAsync(() => BriefingsApi.CancelBriefingAsync(Id));
+
+    private Task AcceptAsync() => RunAsync(() => BriefingsApi.AcceptDeliveryAsync(Id));
+
+    private Task RequestChangesAsync() => RunAsync(() => BriefingsApi.RequestChangesAsync(Id, _reason ?? string.Empty));
+
+    private Task ClaimAsync() => RunAsync(() => BriefingsApi.ClaimBriefingAsync(Id));
+
+    private Task DeliverAsync() => RunAsync(() => BriefingsApi.DeliverBriefingAsync(Id, _deliveryNote ?? string.Empty));
+
+    /// <summary>
+    /// Runs one action and reloads the briefing either way: on success to show the new state, on failure
+    /// because a stale screen (someone else claimed it, say) is exactly what a conflict means.
+    /// </summary>
+    private async Task RunAsync(Func<Task<Result<BriefingDto>>> action)
+    {
+        _actionError = null;
+        _isBusy = true;
+
+        var result = await action();
+
+        if (result.IsSuccess)
+        {
+            _reason = null;
+            _deliveryNote = null;
+        }
+        else
+        {
+            _actionError = result.Errors.Count > 0 ? result.Errors[0].ErrorMessage : result.Error;
+        }
+
+        await LoadAsync();
+        _isBusy = false;
+    }
+
+    private static RenderFragment DetailItem((string Term, string Value, bool Wide) item) => __builder =>
+    {
+        <div class="@(item.Wide ? "sm:col-span-2 lg:col-span-4" : null)">
+            <dt class="text-caption-uppercase uppercase text-muted">@item.Term</dt>
+            <dd class="mt-1 whitespace-pre-line text-body-md text-body-strong">@item.Value</dd>
+        </div>
+    };
+
+    private void NavigateToEdit() => NavigationManager.NavigateTo($"/briefings/{Id}/editar");
+
+    private void NavigateBack() =>
+        NavigationManager.NavigateTo(IsDesigner ? "/briefings/meu-trabalho" : "/briefings/meus");
+}

@@ -1,43 +1,61 @@
 using BriefMe.Application.Abstractions.Messaging;
-using BriefMe.Application.UseCases.Briefings.ApproveBriefing;
+using BriefMe.Application.UseCases.Briefings;
+using BriefMe.Application.UseCases.Briefings.AcceptBriefingDelivery;
 using BriefMe.Application.UseCases.Briefings.CancelBriefing;
+using BriefMe.Application.UseCases.Briefings.ClaimBriefing;
 using BriefMe.Application.UseCases.Briefings.CreateBriefing;
+using BriefMe.Application.UseCases.Briefings.DeliverBriefing;
 using BriefMe.Application.UseCases.Briefings.EditBriefing;
+using BriefMe.Application.UseCases.Briefings.GetBriefingAttachmentContent;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
+using BriefMe.Application.UseCases.Briefings.GetBriefingQueue;
+using BriefMe.Application.UseCases.Briefings.GetBriefingsByDesigner;
 using BriefMe.Application.UseCases.Briefings.GetBriefingsByRequester;
-using BriefMe.Application.UseCases.Briefings.GetBriefingsPendingApproval;
-using BriefMe.Application.UseCases.Briefings.GetBriefingTracking;
-using BriefMe.Application.UseCases.Briefings.RejectBriefing;
-using BriefMe.Application.UseCases.Briefings.RemoveBriefingAttachment;
-using BriefMe.Application.UseCases.Briefings.RequestChangesBriefing;
-using BriefMe.Application.UseCases.Briefings.SubmitBriefingForApproval;
-using BriefMe.Application.UseCases.Briefings.UploadBriefingAttachment;
-using BriefMe.Application.UseCases.Sla.GetOverdueBriefings;
-using BriefMe.Domain.Constants;
+using BriefMe.Application.UseCases.Briefings.RequestBriefingChanges;
+using BriefMe.Application.UseCases.Briefings.SubmitBriefing;
+using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
-using BriefMe.Web.Authorization;
+using BriefMe.Domain.ValueObjects;
 using BriefMe.Web.Contracts.Briefings;
 using BriefMe.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 
 namespace BriefMe.Web.Controllers;
 
 /// <summary>
-/// Exposes the briefing use cases over HTTP (BRF-012, RF004–RF010) plus the review transitions
-/// approve/reject/request-changes (BRF-019, RF011–RF014). A thin controller: it only translates
-/// request → command/query, dispatches via <see cref="ISender"/> and maps <c>Result&lt;T&gt;</c> to the HTTP
-/// response. Ownership and state invariants live in the handlers; this layer only gates on permissions.
+/// The briefing flow over HTTP. Requester actions (write, submit, cancel, accept, send back) and designer
+/// actions (queue, claim, deliver) are gated per action by role; whether the caller owns or is assigned to
+/// <b>this</b> briefing is the handler's answer (403).
 /// </summary>
 [ApiController]
 [Route("briefings")]
 [Authorize]
 public sealed class BriefingsController(ISender sender) : ControllerBase
 {
+    private const string Requester = nameof(UserRole.Requester);
+    private const string Designer = nameof(UserRole.Designer);
+
+    // Room for a request carrying the maximum number of maximum-size attachments plus the form fields. Anything
+    // bigger is cut off by Kestrel before it is buffered; below it, the validators answer per file (ATT-04).
+    private const long AttachmentRequestSizeLimit = Briefing.MaxAttachments * AttachmentFormat.MaxSizeBytes + 1024 * 1024;
+
+    /// <summary>
+    /// <c>multipart/form-data</c>: the <see cref="CreateBriefingRequest"/> fields plus zero or more
+    /// <c>attachments</c> file parts (ATT-01).
+    /// </summary>
     [HttpPost]
-    [HasPermission(Permissions.Briefings.Create)]
-    public async Task<IActionResult> Create(CreateBriefingRequest request, CancellationToken cancellationToken)
+    [Authorize(Roles = Requester)]
+    [RequestSizeLimit(AttachmentRequestSizeLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = AttachmentRequestSizeLimit)]
+    public async Task<IActionResult> Create(
+        [FromForm] CreateBriefingRequest request,
+        [FromForm] List<IFormFile>? attachments,
+        CancellationToken cancellationToken)
     {
+        await using var uploads = new FormFileUploads(attachments);
+
         var command = new CreateBriefingCommand(
             request.Title,
             request.Priority,
@@ -45,7 +63,8 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
             request.Description,
             request.Objective,
             request.RequestingArea,
-            request.DesiredDeliveryDate);
+            request.DesiredDeliveryDate,
+            uploads.Items);
 
         var result = await sender.Send(command, cancellationToken);
 
@@ -54,10 +73,23 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
             : result.ToProblem(this, "Falha ao criar briefing");
     }
 
+    /// <summary>
+    /// <c>multipart/form-data</c>: the <see cref="UpdateBriefingRequest"/> fields, new <c>attachments</c> file parts
+    /// and one <c>removedAttachmentIds</c> part per attachment to drop (ATT-08).
+    /// </summary>
     [HttpPut("{id:guid}")]
-    [HasPermission(Permissions.Briefings.Create)]
-    public async Task<IActionResult> Update(Guid id, UpdateBriefingRequest request, CancellationToken cancellationToken)
+    [Authorize(Roles = Requester)]
+    [RequestSizeLimit(AttachmentRequestSizeLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = AttachmentRequestSizeLimit)]
+    public async Task<IActionResult> Update(
+        Guid id,
+        [FromForm] UpdateBriefingRequest request,
+        [FromForm] List<IFormFile>? attachments,
+        [FromForm] List<Guid>? removedAttachmentIds,
+        CancellationToken cancellationToken)
     {
+        await using var uploads = new FormFileUploads(attachments);
+
         var command = new EditBriefingCommand(
             id,
             request.Title,
@@ -65,7 +97,9 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
             request.Description,
             request.Objective,
             request.RequestingArea,
-            request.DesiredDeliveryDate);
+            request.DesiredDeliveryDate,
+            uploads.Items,
+            removedAttachmentIds ?? []);
 
         var result = await sender.Send(command, cancellationToken);
 
@@ -73,60 +107,16 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     [HttpPost("{id:guid}/submit")]
-    [HasPermission(Permissions.Briefings.Create)]
+    [Authorize(Roles = Requester)]
     public async Task<IActionResult> Submit(Guid id, CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new SubmitBriefingForApprovalCommand(id), cancellationToken);
+        var result = await sender.Send(new SubmitBriefingCommand(id), cancellationToken);
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao submeter briefing para aprovação");
     }
 
-    /// <summary>
-    /// Attaches a reference file to a briefing (RF005). Consumes <c>multipart/form-data</c> with a single
-    /// <c>file</c> part and streams it into the command — <c>IFileStorageService</c> takes a
-    /// <see cref="Stream"/> (BRF-011), so buffering the upload here would buy nothing.
-    /// </summary>
-    /// <remarks>
-    /// A missing part is deliberately not short-circuited: the command is dispatched with the nulls and
-    /// <c>UploadBriefingAttachmentCommandValidator</c> turns them into a <c>400</c>, keeping the wording in
-    /// the <c>BriefingErrors.Validation</c> catalog instead of restating it in Web. Size and extension limits
-    /// belong to <c>IFileValidator</c>, which reads them from configuration.
-    /// <para>
-    /// Gated on <c>briefings.create</c>, like <c>PUT /briefings/{id}</c>: attaching material is part of
-    /// composing a briefing. Whether the caller owns <b>this</b> one is the handler's answer (<c>403</c>).
-    /// </para>
-    /// </remarks>
-    [HttpPost("{id:guid}/attachments")]
-    [HasPermission(Permissions.Briefings.Create)]
-    [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadAttachment(Guid id, IFormFile? file, CancellationToken cancellationToken)
-    {
-        // Disposed once the handler has copied it into storage; the request would release it anyway, but the
-        // scope makes the lifetime explicit.
-        await using var content = file?.OpenReadStream();
-
-        var command = new UploadBriefingAttachmentCommand(id, file?.FileName, file?.Length ?? 0, content);
-
-        var result = await sender.Send(command, cancellationToken);
-
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao anexar arquivo ao briefing");
-    }
-
-    /// <summary>
-    /// Removes one reference file from a briefing (RF005) and returns the briefing with the files that
-    /// remain, so the form has nothing left to re-fetch.
-    /// </summary>
-    [HttpDelete("{id:guid}/attachments/{attachmentId:guid}")]
-    [HasPermission(Permissions.Briefings.Create)]
-    public async Task<IActionResult> RemoveAttachment(Guid id, Guid attachmentId, CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(new RemoveBriefingAttachmentCommand(id, attachmentId), cancellationToken);
-
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao remover o anexo do briefing");
-    }
-
     [HttpPost("{id:guid}/cancel")]
-    [HasPermission(Permissions.Briefings.Create)]
+    [Authorize(Roles = Requester)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new CancelBriefingCommand(id), cancellationToken);
@@ -134,48 +124,9 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao cancelar briefing");
     }
 
-    /// <summary>
-    /// Approves a briefing under review (BRF-019, RF011). Reviewing is an act of a third party over someone
-    /// else's briefing, so there is no ownership check anywhere in this path — the permission gate is the
-    /// only authorization layer that applies.
-    /// </summary>
-    [HttpPost("{id:guid}/approve")]
-    [HasPermission(Permissions.Briefings.Approve)]
-    public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(new ApproveBriefingCommand(id), cancellationToken);
-
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao aprovar briefing");
-    }
-
-    /// <summary>
-    /// Rejects a briefing under review (BRF-019, RF012). The justification is mandatory (RF013) and is
-    /// validated by <c>RejectBriefingCommandValidator</c>, which surfaces a missing reason as a 400.
-    /// </summary>
-    [HttpPost("{id:guid}/reject")]
-    [HasPermission(Permissions.Briefings.Reject)]
-    public async Task<IActionResult> Reject(Guid id, RejectBriefingRequest request, CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(new RejectBriefingCommand(id, request.Justification), cancellationToken);
-
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao rejeitar briefing");
-    }
-
-    /// <summary>
-    /// Returns a briefing to its requester for corrections (BRF-019, RF014). Unlike a rejection, the
-    /// briefing stays editable and can be resubmitted through <c>POST /briefings/{id}/submit</c>.
-    /// </summary>
-    [HttpPost("{id:guid}/request-changes")]
-    [HasPermission(Permissions.Briefings.RequestAdjustments)]
-    public async Task<IActionResult> RequestChanges(Guid id, RequestChangesBriefingRequest request, CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(new RequestChangesBriefingCommand(id, request.Justification), cancellationToken);
-
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao solicitar ajustes no briefing");
-    }
-
+    /// <summary>Open to the owner, the assigned designer, and any designer while the briefing is queued.</summary>
     [HttpGet("{id:guid}")]
-    [HasPermission(Permissions.Briefings.ViewOwn)]
+    [Authorize(Roles = Requester + "," + Designer)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetBriefingByIdQuery(id), cancellationToken);
@@ -184,69 +135,32 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Reads a briefing's progress and the tasks behind it (BRF-039, RF023) — the tracking screen's single
-    /// read. The percentage is the domain's (BRF-035), computed per request and never cached.
+    /// Attachment bytes for a media element (ATT-18). Anonymous because <c>&lt;img&gt;</c>, <c>&lt;video&gt;</c> and
+    /// <c>&lt;iframe&gt;</c> send no bearer token: the signed <paramref name="token"/> from <c>GET /briefings/{id}</c>
+    /// is the authorization. Served inline under the detected type with <c>nosniff</c>, and with range support
+    /// so video and audio can seek.
     /// </summary>
-    /// <remarks>
-    /// Gated on <b>either</b> briefing-view permission: the requester reaches it through
-    /// <c>briefings.view-own</c> and design management through <c>briefings.view-all</c>, and the seeded
-    /// Design Manager holds only the latter (USR-047). Holding one merely opens the door — whether the
-    /// caller is involved in <b>this</b> briefing is data the handler decides, answering <c>403</c> when
-    /// they are not. The literal suffix cannot collide with <c>GET /briefings/{id:guid}</c>.
-    /// </remarks>
-    [HttpGet("{id:guid}/tracking")]
-    [HasPermission(Permissions.Briefings.ViewOwn, Permissions.Briefings.ViewAll)]
-    public async Task<IActionResult> GetTracking(Guid id, CancellationToken cancellationToken)
+    [HttpGet("{id:guid}/attachments/{attachmentId:guid}/content")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAttachmentContent(Guid id, Guid attachmentId, [FromQuery] string? token, CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new GetBriefingTrackingQuery(id), cancellationToken);
+        var result = await sender.Send(new GetBriefingAttachmentContentQuery(id, attachmentId, token), cancellationToken);
+        if (result.IsFailure)
+            return result.ToProblem(this, "Anexo indisponível");
 
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao carregar o acompanhamento do briefing");
-    }
+        // Private: the URL carries a credential. The token lives 15 minutes, so caching longer buys nothing.
+        Response.Headers.CacheControl = "private, max-age=900";
+        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline")
+        {
+            FileNameStar = result.Value.FileName
+        }.ToString();
 
-    /// <summary>
-    /// Lists the briefings awaiting review for the Design Manager's approval panel (BRF-020). Gated on
-    /// <c>briefings.view-all</c>, the Manager's read capability — the role holds no <c>briefings.view-own</c>,
-    /// so the ownership-scoped <c>GET /briefings</c> is not a substitute. The literal route cannot collide
-    /// with <c>GET /briefings/{id:guid}</c>, which is guid-constrained.
-    /// </summary>
-    [HttpGet("pending-approval")]
-    [HasPermission(Permissions.Briefings.ViewAll)]
-    public async Task<IActionResult> GetPendingApproval(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
-        CancellationToken cancellationToken = default)
-    {
-        var query = new GetBriefingsPendingApprovalQuery(page, pageSize);
-        var result = await sender.Send(query, cancellationToken);
-
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar briefings pendentes de aprovação");
-    }
-
-    /// <summary>
-    /// Lists the briefings currently past their due instant (RF030, BRF-045), paginated, longest late first
-    /// — the demand half of the SLA dashboard (BRF-046). Each row carries the delivery date that was missed,
-    /// the requester and the category.
-    /// </summary>
-    /// <remarks>
-    /// Gated on <c>briefings.view-all</c> alone: the list crosses every requester's demands, which is exactly
-    /// what <c>briefings.view-own</c> does not open. Whether a briefing is late is not decided here — the SLA
-    /// monitor (BRF-043) marked it, and this route reports the mark. The literal route cannot collide with
-    /// <c>GET /briefings/{id:guid}</c>, which is guid-constrained.
-    /// </remarks>
-    [HttpGet("overdue")]
-    [HasPermission(Permissions.Briefings.ViewAll)]
-    public async Task<IActionResult> GetOverdue(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
-        CancellationToken cancellationToken = default)
-    {
-        var result = await sender.Send(new GetOverdueBriefingsQuery(page, pageSize), cancellationToken);
-
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar briefings atrasados");
+        return File(result.Value.Content, result.Value.ContentType, enableRangeProcessing: true);
     }
 
     [HttpGet]
-    [HasPermission(Permissions.Briefings.ViewOwn)]
+    [Authorize(Roles = Requester)]
     public async Task<IActionResult> GetMyBriefings(
         [FromQuery] BriefingStatus? status,
         [FromQuery] Guid? categoryId,
@@ -258,5 +172,88 @@ public sealed class BriefingsController(ISender sender) : ControllerBase
         var result = await sender.Send(query, cancellationToken);
 
         return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar briefings");
+    }
+
+    [HttpPost("{id:guid}/accept")]
+    [Authorize(Roles = Requester)]
+    public async Task<IActionResult> Accept(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new AcceptBriefingDeliveryCommand(id), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao aceitar a entrega");
+    }
+
+    [HttpPost("{id:guid}/request-changes")]
+    [Authorize(Roles = Requester)]
+    public async Task<IActionResult> RequestChanges(Guid id, RequestBriefingChangesRequest request, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new RequestBriefingChangesCommand(id, request.Reason), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao solicitar ajustes");
+    }
+
+    /// <summary>The open queue: submitted briefings no designer has claimed yet, oldest first.</summary>
+    [HttpGet("queue")]
+    [Authorize(Roles = Designer)]
+    public async Task<IActionResult> GetQueue(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(new GetBriefingQueueQuery(page, pageSize), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar a fila de briefings");
+    }
+
+    /// <summary>The briefings the calling designer claimed.</summary>
+    [HttpGet("assigned")]
+    [Authorize(Roles = Designer)]
+    public async Task<IActionResult> GetAssigned(
+        [FromQuery] BriefingStatus? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(new GetBriefingsByDesignerQuery(page, pageSize, status), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao listar seus briefings");
+    }
+
+    [HttpPost("{id:guid}/claim")]
+    [Authorize(Roles = Designer)]
+    public async Task<IActionResult> Claim(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new ClaimBriefingCommand(id), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao assumir o briefing");
+    }
+
+    [HttpPost("{id:guid}/deliver")]
+    [Authorize(Roles = Designer)]
+    public async Task<IActionResult> Deliver(Guid id, DeliverBriefingRequest request, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new DeliverBriefingCommand(id, request.DeliveryNote), cancellationToken);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToProblem(this, "Falha ao entregar o briefing");
+    }
+
+    /// <summary>
+    /// Opens every posted file as an <see cref="AttachmentUpload"/> and closes them all once the command ran.
+    /// Form-file streams sit on the buffered request body, so they are seekable as the stager requires.
+    /// </summary>
+    private sealed class FormFileUploads : IAsyncDisposable
+    {
+        public FormFileUploads(IReadOnlyList<IFormFile>? files)
+        {
+            Items = (files ?? []).Select(file => new AttachmentUpload(file.FileName, file.OpenReadStream(), file.Length)).ToList();
+        }
+
+        public IReadOnlyList<AttachmentUpload> Items { get; }
+
+        public async ValueTask DisposeAsync()
+        {
+            foreach (var item in Items)
+                await item.Content.DisposeAsync();
+        }
     }
 }

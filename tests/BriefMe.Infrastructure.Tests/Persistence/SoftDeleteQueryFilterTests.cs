@@ -1,4 +1,5 @@
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Persistence;
 using BriefMe.Infrastructure.Persistence.Interceptors;
@@ -25,8 +26,8 @@ public class SoftDeleteQueryFilterTests
     {
         // Arrange
         await using var context = CreateContext();
-        var active = User.Create("Ativo Silva", Email.Create("ativo@empresa.com").Value, "hash");
-        var deleted = User.Create("Deletado Souza", Email.Create("deletado@empresa.com").Value, "hash");
+        var active = User.Create("Ativo Silva", Email.Create("ativo@empresa.com").Value, "hash", UserRole.Requester);
+        var deleted = User.Create("Deletado Souza", Email.Create("deletado@empresa.com").Value, "hash", UserRole.Requester);
         deleted.MarkAsDeleted("admin@briefme.com");
         context.Users.AddRange(active, deleted);
         await context.SaveChangesAsync();
@@ -43,8 +44,8 @@ public class SoftDeleteQueryFilterTests
     {
         // Arrange
         await using var context = CreateContext();
-        var active = User.Create("Ativo Silva", Email.Create("ativo@empresa.com").Value, "hash");
-        var deleted = User.Create("Deletado Souza", Email.Create("deletado@empresa.com").Value, "hash");
+        var active = User.Create("Ativo Silva", Email.Create("ativo@empresa.com").Value, "hash", UserRole.Requester);
+        var deleted = User.Create("Deletado Souza", Email.Create("deletado@empresa.com").Value, "hash", UserRole.Requester);
         deleted.MarkAsDeleted("admin@briefme.com");
         context.Users.AddRange(active, deleted);
         await context.SaveChangesAsync();

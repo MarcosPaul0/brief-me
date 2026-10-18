@@ -1,30 +1,37 @@
+@* No screen of its own: "/" (the login default and the header wordmark) forwards each role to its main page. *@
 @page "/"
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
+@inject NavigationManager NavigationManager
 
-<PageTitle>Início</PageTitle>
+<PageTitle>BriefMe</PageTitle>
 
-<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
-    <div class="mx-auto max-w-[1100px]">
-        <AuthorizeView>
-            <div>
-                <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">
-                    Olá@(FirstName(context.User) is { } name ? $", {name}" : "")
-                </h1>
-                <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">
-                    Módulo de Usuários e Acesso. Escolha uma área para começar.
-                </p>
-            </div>
-
-            <HomeNavOptions />
-        </AuthorizeView>
-    </div>
-</div>
+@if (_hasNoRole)
+{
+    <AccessDenied />
+}
+else
+{
+    <LoadingState Text="Carregando..." />
+}
 
 @code {
-    private static string? FirstName(System.Security.Claims.ClaimsPrincipal user)
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = default!;
+
+    private bool _hasNoRole;
+
+    protected override async Task OnInitializedAsync()
     {
-        var name = user.Identity?.Name;
-        return string.IsNullOrWhiteSpace(name) ? null : name.Split(' ')[0];
+        var state = await AuthenticationState;
+        var landingPage = RoleLandingPage.For(state.User);
+
+        if (landingPage is null)
+        {
+            _hasNoRole = true;
+            return;
+        }
+
+        NavigationManager.NavigateTo(landingPage, replace: true);
     }
 }

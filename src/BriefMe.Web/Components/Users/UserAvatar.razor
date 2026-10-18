@@ -1,0 +1,25 @@
+@*
+    A user's avatar: maps the profile fields to the anonymous image endpoint. The version in the query string
+    changes on every upload, so the browser may cache each URL forever (AVT-09/11).
+*@
+<Avatar Name="@Name" ImageUrl="@ImageUrl" Size="Size" Class="@Class" />
+
+@code {
+    [Parameter, EditorRequired]
+    public Guid UserId { get; set; }
+
+    [Parameter, EditorRequired]
+    public string? Name { get; set; }
+
+    /// <summary>Null when the user has no avatar — the initial is shown.</summary>
+    [Parameter]
+    public Guid? AvatarVersion { get; set; }
+
+    [Parameter]
+    public AvatarSize Size { get; set; } = AvatarSize.Sm;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private string? ImageUrl => AvatarVersion is { } version ? $"users/{UserId}/avatar?v={version:N}" : null;
+}

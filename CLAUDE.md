@@ -50,17 +50,39 @@ Domain ← Application ← Infrastructure
 - EF Core `DbContext` and configurations
 - Repository implementations
 - External API clients (HTTP, messaging)
+- Object storage (`Storage/MinioFileStorage` behind Application's `IFileStorage`) — MinIO from `docker-compose.yml`
+  locally (`ObjectStorage` config section, console on `:9001`); holds user avatars and briefing attachments
+  (`briefings/{briefingId}/…`)
+- Attachment content links (`Storage/HmacAttachmentLinkSigner` behind `IAttachmentLinkSigner`) — 15-minute HMAC
+  tokens that let `<img>`/`<video>`/`<audio>`/`<iframe>` load an attachment without a bearer token
+  (`AttachmentLinks:SigningKey`, ≥ 32 bytes, required outside Development)
 - Migrations
 
 ### Web (`BriefMe.Web`)
 - Routable pages (`@page`) in `Pages/` — one page = one screen/route
-- Reusable UI parts in `Components/` (`Auth/`, `Layout/`, `Profiles/`, `Users/`) — building blocks composed into pages
+- Shared UI primitives in `Ui/` (namespace `BriefMe.Web.Ui`; catalogue in `Ui/README.md`) — shadcn-style `Button`,
+  `FormField`/`Form*` fields, `Card`, `Badge`, `Alert`, `Dialog`, `Table`, `PageHeader`, ... styled from the Clay
+  design tokens (`Styles/app.tailwind.css` `@theme`). Pages and components compose them; no hex colours or
+  hand-rolled control markup outside `Ui/`
+- Reusable UI parts in `Components/` (`Auth/`, `Briefings/`, `Layout/`, `Users/`) — building blocks composed into pages
 - App root infra (`App.razor`, `Routes.razor`) stays in `Components/`
 - Typed REST API clients in `ApiClients/` (namespace `BriefMe.Web.ApiClients`) — thin clients pages/components call to reach the API; base HTTP infra (`AuthenticatedApiClient`, extensions) stays in `Http/`
 - Shared `@using` directives in root `_Imports.razor`
 - DI registration (`Program.cs`)
 - No business logic in components — call Application use cases only
 - `appsettings.json` / `appsettings.Development.json` for config
+
+## Product Scope
+
+Three fixed roles (`UserRole` enum on `User`, carried as the JWT role claim; authorize with
+`[Authorize(Roles = ...)]` / `<AuthorizeView Roles="...">` — there is no permission catalog):
+
+- **Requester** writes briefings and submits them to the queue; accepts the delivery or sends it back with a reason.
+- **Designer** claims a briefing from the open queue (first claim wins — optimistic concurrency on `xmin`) and delivers it with a note.
+- **Admin** manages users and categories only; takes no part in the briefing flow.
+
+Briefing lifecycle: `Draft → Submitted → InProgress → Delivered → Completed`, with `Delivered → InProgress` on a change
+request and `Draft|Submitted → Cancelled`. Spec: `.specs/features/simplified-workflow/`.
 
 ## Commands
 

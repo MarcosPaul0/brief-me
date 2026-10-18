@@ -1,0 +1,104 @@
+@* The open queue designers claim from. Route note: /briefings/fila, never /briefings/queue — that path is
+   BriefingsController's GET and the two would collide (AmbiguousMatchException). *@
+@page "/briefings/fila"
+@attribute [Authorize(Roles = nameof(UserRole.Designer))]
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Web.Contracts.Common
+@using Microsoft.AspNetCore.Authorization
+@inject IBriefingsApiClient BriefingsApi
+@inject AuthSessionStore SessionStore
+@inject NavigationManager NavigationManager
+
+<PageTitle>Fila de briefings</PageTitle>
+
+<PageContainer>
+    <PageHeader Title="Fila de briefings"
+                Description="Briefings enviados que ainda não têm designer, do mais antigo ao mais recente. Ao assumir um, ele passa a ser seu." />
+
+    @if (_actionError is not null)
+    {
+        <Alert Class="mt-5">@_actionError</Alert>
+    }
+
+    <div class="mt-8">
+        <BriefingListTable Page="_page" IsLoading="_isLoading" ErrorMessage="@_errorMessage" ShowRequester="true"
+                           EmptyTitle="A fila está vazia" EmptyHint="Novos briefings aparecem aqui assim que forem enviados."
+                           OnPageChange="GoToPageAsync" OnRetry="LoadAsync">
+            <RowActions Context="briefing">
+                <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Eye" OnClick="() => NavigateToDetail(briefing.Id)">Ver</Button>
+                <Button Size="ButtonSize.Sm" Icon="IconName.Hand" OnClick="() => ClaimAsync(briefing.Id)"
+                        Disabled="_claimingId is not null" Loading="_claimingId == briefing.Id">
+                    @(_claimingId == briefing.Id ? "Assumindo..." : "Assumir")
+                </Button>
+            </RowActions>
+        </BriefingListTable>
+    </div>
+</PageContainer>
+
+@code {
+    private const int PageSize = 20;
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string? _actionError;
+    private PagedResponse<BriefingListItemDto>? _page;
+    private int _currentPage = 1;
+    private Guid? _claimingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No token before the interactive restore — same guard as the other list screens.
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        var result = await BriefingsApi.GetQueueAsync(_currentPage, PageSize);
+        if (result.IsSuccess)
+        {
+            _page = result.Value;
+        }
+        else
+        {
+            _page = null;
+            _errorMessage = result.Error;
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _currentPage = page;
+        await LoadAsync();
+    }
+
+    private async Task ClaimAsync(Guid briefingId)
+    {
+        _actionError = null;
+        _claimingId = briefingId;
+
+        var result = await BriefingsApi.ClaimBriefingAsync(briefingId);
+
+        _claimingId = null;
+
+        if (result.IsSuccess)
+        {
+            NavigateToDetail(briefingId);
+            return;
+        }
+
+        // Most often someone else claimed it first: show why and refresh so the row disappears.
+        _actionError = result.Error;
+        await LoadAsync();
+    }
+
+    private void NavigateToDetail(Guid briefingId) => NavigationManager.NavigateTo($"/briefings/{briefingId}/detalhes");
+}

@@ -21,40 +21,18 @@ public class UserRepositoryTests
         return new AppDbContext(options);
     }
 
-    private static User CreateUser(string fullName, string email, UserStatus status = UserStatus.Active)
+    private static User CreateUser(
+        string fullName,
+        string email,
+        UserStatus status = UserStatus.Active,
+        UserRole role = UserRole.Requester)
     {
-        var user = User.Create(fullName, Email.Create(email).Value, "hashed-password");
+        var user = User.Create(fullName, Email.Create(email).Value, "hashed-password", role);
 
         if (status == UserStatus.Inactive)
             user.Deactivate();
 
         return user;
-    }
-
-    [Fact]
-    public async Task GetByEmailAsync_WhenEmailExists_ReturnsUserWithRolesAndPermissions()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var permission = Permission.Create("users.create", "Criar usuários", null, "Usuários");
-        var role = Role.Create("Designer", null);
-        role.AddPermission(permission.Id);
-        var user = CreateUser("Ana Silva", "ana@briefme.com");
-        user.AssignRole(role.Id);
-
-        await context.Permissions.AddAsync(permission);
-        await context.Roles.AddAsync(role);
-        await context.Users.AddAsync(user);
-        await context.SaveChangesAsync();
-
-        var repository = new UserRepository(context);
-
-        // Act
-        var result = await repository.GetByEmailAsync(Email.Create("ana@briefme.com").Value);
-
-        // Assert
-        result.Should().NotBeNull();
-        result!.UserRoles.Single().Role!.RolePermissions.Single().Permission!.Code.Should().Be("users.create");
     }
 
     [Fact]
@@ -117,109 +95,6 @@ public class UserRepositoryTests
 
         // Assert
         result.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task GetByIdWithRolesAsync_WhenUserExists_ReturnsUserWithRoles()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var role = Role.Create("Designer", null);
-        var user = CreateUser("Ana Silva", "ana@briefme.com");
-        user.AssignRole(role.Id);
-
-        await context.Roles.AddAsync(role);
-        await context.Users.AddAsync(user);
-        await context.SaveChangesAsync();
-
-        var repository = new UserRepository(context);
-
-        // Act
-        var result = await repository.GetByIdWithRolesAsync(user.Id);
-
-        // Assert
-        result!.UserRoles.Single().Role!.Name.Should().Be("Designer");
-    }
-
-    [Fact]
-    public async Task GetByIdWithRolesAsync_WhenUserDoesNotExist_ReturnsNull()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var repository = new UserRepository(context);
-
-        // Act
-        var result = await repository.GetByIdWithRolesAsync(Guid.NewGuid());
-
-        // Assert
-        result.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task GetByIdWithRolesAsync_WhenRolesAreReconciledAndCommittedWithoutExplicitUpdate_PersistsAddedAndRemovedRoles()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var oldRole = Role.Create("Designer", null);
-        var newRole = Role.Create("Gestor de Design", null);
-        var user = CreateUser("Ana Silva", "ana@briefme.com");
-        user.AssignRole(oldRole.Id);
-
-        await context.Roles.AddRangeAsync(oldRole, newRole);
-        await context.Users.AddAsync(user);
-        await context.SaveChangesAsync();
-
-        var repository = new UserRepository(context);
-        var unitOfWork = new UnitOfWork(context, new RecordingDomainEventDispatcher());
-
-        // Act
-        var trackedUser = await repository.GetByIdWithRolesAsync(user.Id);
-        trackedUser!.RemoveRole(oldRole.Id);
-        trackedUser.AssignRole(newRole.Id);
-        await unitOfWork.CommitAsync();
-
-        // Assert
-        var reloaded = await repository.GetByIdWithRolesAsync(user.Id);
-        reloaded!.UserRoles.Select(ur => ur.RoleId).Should().BeEquivalentTo([newRole.Id]);
-    }
-
-    [Fact]
-    public async Task GetByIdWithRolesAndPermissionsAsync_WhenUserExists_ReturnsUserWithRolesAndPermissions()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var permission = Permission.Create("users.create", "Criar usuários", null, "Usuários");
-        var role = Role.Create("Designer", null);
-        role.AddPermission(permission.Id);
-        var user = CreateUser("Ana Silva", "ana@briefme.com");
-        user.AssignRole(role.Id);
-
-        await context.Permissions.AddAsync(permission);
-        await context.Roles.AddAsync(role);
-        await context.Users.AddAsync(user);
-        await context.SaveChangesAsync();
-
-        var repository = new UserRepository(context);
-
-        // Act
-        var result = await repository.GetByIdWithRolesAndPermissionsAsync(user.Id);
-
-        // Assert
-        result!.UserRoles.Single().Role!.RolePermissions.Single().Permission!.Code.Should().Be("users.create");
-    }
-
-    [Fact]
-    public async Task GetByIdWithRolesAndPermissionsAsync_WhenUserDoesNotExist_ReturnsNull()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var repository = new UserRepository(context);
-
-        // Act
-        var result = await repository.GetByIdWithRolesAndPermissionsAsync(Guid.NewGuid());
-
-        // Assert
-        result.Should().BeNull();
     }
 
     [Fact]
@@ -309,28 +184,6 @@ public class UserRepositoryTests
     }
 
     [Fact]
-    public async Task GetPagedAsync_WhenRoleFilterApplied_ReturnsOnlyUsersWithRole()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var role = Role.Create("Designer", null);
-        var userWithRole = CreateUser("Ana Silva", "ana@briefme.com");
-        userWithRole.AssignRole(role.Id);
-        var userWithoutRole = CreateUser("Bruno Costa", "bruno@briefme.com");
-
-        await context.Roles.AddAsync(role);
-        await context.Users.AddRangeAsync(userWithRole, userWithoutRole);
-        await context.SaveChangesAsync();
-        var repository = new UserRepository(context);
-
-        // Act
-        var result = await repository.GetPagedAsync(new UserFilter(RoleId: role.Id), page: 1, pageSize: 10, sort: new UserSort());
-
-        // Assert
-        result.Single().FullName.Should().Be("Ana Silva");
-    }
-
-    [Fact]
     public async Task GetPagedAsync_WhenPageBeyondTotal_ReturnsEmpty()
     {
         // Arrange
@@ -405,5 +258,39 @@ public class UserRepositoryTests
 
         // Assert
         totalCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetByEmailAsync_WhenEmailExists_ReturnsUserWithItsRole()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.Users.AddAsync(CreateUser("Ana Silva", "ana@briefme.com", role: UserRole.Designer));
+        await context.SaveChangesAsync();
+        var repository = new UserRepository(context);
+
+        // Act
+        var result = await repository.GetByEmailAsync(Email.Create("ana@briefme.com").Value);
+
+        // Assert
+        result!.Role.Should().Be(UserRole.Designer);
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_WhenRoleFilterApplied_ReturnsOnlyUsersWithRole()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.Users.AddRangeAsync(
+            CreateUser("Ana Silva", "ana@briefme.com", role: UserRole.Designer),
+            CreateUser("Bruno Costa", "bruno@briefme.com", role: UserRole.Requester));
+        await context.SaveChangesAsync();
+        var repository = new UserRepository(context);
+
+        // Act
+        var result = await repository.GetPagedAsync(new UserFilter(Role: UserRole.Designer), page: 1, pageSize: 10, sort: new UserSort());
+
+        // Assert
+        result.Should().ContainSingle().Which.FullName.Should().Be("Ana Silva");
     }
 }

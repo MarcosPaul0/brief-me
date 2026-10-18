@@ -1,0 +1,13 @@
+@* Supporting copy under a CardTitle, in muted body-sm. *@
+<p class="@ClassNames.Join("text-body-sm text-muted", Class)" @attributes="AdditionalAttributes">@ChildContent</p>
+
+@code {
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+}

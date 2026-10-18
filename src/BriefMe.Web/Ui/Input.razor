@@ -1,0 +1,18 @@
+@* Text field outside an EditForm (filters, inline forms). Inside an EditForm use FormInput. *@
+<input value="@Value" @onchange="OnChangeAsync" class="@ClassNames.Join(UiClasses.Control, Class)" @attributes="AdditionalAttributes" />
+
+@code {
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private Task OnChangeAsync(ChangeEventArgs args) => ValueChanged.InvokeAsync(args.Value?.ToString());
+}

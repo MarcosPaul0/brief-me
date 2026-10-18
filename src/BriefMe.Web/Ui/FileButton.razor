@@ -1,0 +1,52 @@
+@*
+    A file picker that looks like a Button: a <label> wrapping a visually hidden InputFile, so the native picker
+    (and its keyboard access) is kept. The focus ring follows the hidden input via has-[:focus-visible].
+*@
+<label class="@ClassNames.Join(ButtonClasses.For(Variant, Size, "cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink"), IsDisabled ? "pointer-events-none opacity-50" : null, Class)">
+    @if (Loading)
+    {
+        <Spinner />
+    }
+    else if (Icon is { } icon)
+    {
+        <Icon Name="icon" />
+    }
+    @ChildContent
+    <InputFile class="sr-only" accept="@Accept" disabled="@IsDisabled" OnChange="OnChange" @attributes="AdditionalAttributes" />
+</label>
+
+@code {
+    [Parameter]
+    public ButtonVariant Variant { get; set; } = ButtonVariant.Outline;
+
+    [Parameter]
+    public ButtonSize Size { get; set; }
+
+    /// <summary>The <c>accept</c> filter, e.g. <c>image/png,image/jpeg</c>. A hint only — validate on the server.</summary>
+    [Parameter]
+    public string? Accept { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public IconName? Icon { get; set; }
+
+    [Parameter]
+    public EventCallback<InputFileChangeEventArgs> OnChange { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Unmatched attributes (<c>id</c>, <c>aria-*</c>) go to the hidden input.</summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsDisabled => Disabled || Loading;
+}

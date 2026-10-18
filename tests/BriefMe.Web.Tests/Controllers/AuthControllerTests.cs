@@ -6,6 +6,7 @@ using BriefMe.Application.UseCases.Auth.RefreshToken;
 using BriefMe.Application.UseCases.Auth;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.ValueObjects;
 using BriefMe.Infrastructure.Auth;
 using BriefMe.Web.Contracts.Auth;
@@ -39,9 +40,7 @@ public class AuthControllerTests
 
     private static User CreateUser()
     {
-        var user = User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, "hashed-password");
-        var role = Role.Create("Designer", null);
-        user.AssignRole(role.Id);
+        var user = User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, "hashed-password", UserRole.Designer);
 
         return user;
     }

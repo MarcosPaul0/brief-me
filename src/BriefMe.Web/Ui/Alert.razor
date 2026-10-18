@@ -1,0 +1,49 @@
+@*
+    Message strip for a form or action outcome, led by its variant's icon. Danger and Warning interrupt (role=alert);
+    Info and Success are announced politely (role=status).
+*@
+<div role="@(Variant is AlertVariant.Danger or AlertVariant.Warning ? "alert" : "status")"
+     class="@ClassNames.Join("flex gap-3 rounded-md border px-4 py-3 text-body-sm", VariantClasses, Class)"
+     @attributes="AdditionalAttributes">
+    <Icon Name="VariantIcon" Size="18" Class="mt-px" />
+    <div class="min-w-0 flex-1">
+        @if (Title is not null)
+        {
+            <p class="text-title-sm">@Title</p>
+        }
+        <div class="@(Title is null ? null : "mt-1 text-body")">@ChildContent</div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public AlertVariant Variant { get; set; } = AlertVariant.Danger;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private IconName VariantIcon => Variant switch
+    {
+        AlertVariant.Info => IconName.Info,
+        AlertVariant.Success => IconName.CircleCheck,
+        AlertVariant.Warning => IconName.TriangleAlert,
+        _ => IconName.CircleAlert
+    };
+
+    private string VariantClasses => Variant switch
+    {
+        AlertVariant.Info => "border-brand-lavender bg-info-surface text-info-ink",
+        AlertVariant.Success => "border-success bg-success-surface text-success-ink",
+        AlertVariant.Warning => "border-warning bg-warning-surface text-warning-ink",
+        _ => "border-error bg-error-surface text-error-ink"
+    };
+}

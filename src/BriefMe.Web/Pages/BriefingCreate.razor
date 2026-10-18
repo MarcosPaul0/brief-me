@@ -1,5 +1,5 @@
 @page "/briefings/novo"
-@attribute [Authorize(Policy = "briefings.create")]
+@attribute [Authorize(Roles = nameof(UserRole.Requester))]
 @using Microsoft.AspNetCore.Authorization
 
 <PageTitle>Novo briefing</PageTitle>

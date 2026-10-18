@@ -1,0 +1,71 @@
+@*
+    The app's action control (DESIGN-clay.md button-primary / button-secondary). Renders an <a> when Href is set,
+    otherwise a <button>. Icon leads the label; Loading implies disabled and swaps the icon for a spinner.
+*@
+@if (Href is not null)
+{
+    <a href="@(IsDisabled ? null : Href)" aria-disabled="@(IsDisabled ? "true" : null)"
+       class="@ClassNames.Join(Classes, IsDisabled ? "pointer-events-none" : null)" @attributes="AdditionalAttributes">
+        @Content
+    </a>
+}
+else
+{
+    <button type="@Type" disabled="@IsDisabled" @onclick="OnClick" class="@Classes" @attributes="AdditionalAttributes">
+        @Content
+    </button>
+}
+
+@code {
+    [Parameter]
+    public ButtonVariant Variant { get; set; }
+
+    [Parameter]
+    public ButtonSize Size { get; set; }
+
+    /// <summary>The <c>type</c> attribute: <c>button</c> unless the button submits its form.</summary>
+    [Parameter]
+    public string Type { get; set; } = "button";
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public string? Href { get; set; }
+
+    /// <summary>Leading glyph before the label.</summary>
+    [Parameter]
+    public IconName? Icon { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsDisabled => Disabled || Loading;
+
+    private RenderFragment Content => __builder =>
+    {
+        if (Loading)
+        {
+            <Spinner />
+        }
+        else if (Icon is { } icon)
+        {
+            <Icon Name="icon" />
+        }
+        @ChildContent
+    };
+
+    private string Classes => ButtonClasses.For(Variant, Size, Class);
+}

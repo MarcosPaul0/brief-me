@@ -30,12 +30,6 @@ up: ## Sobe toda a stack (Postgres + MinIO) em background
 down: ## Para a stack (mantem volumes/dados)
 	docker compose down
 
-minio-up: ## Sobe MinIO em background (API :9000, console :9001)
-	docker compose up -d minio
-
-minio-logs: ## Segue logs do MinIO
-	docker compose logs -f minio
-
 db-up: ## Sobe Postgres em background
 	docker compose up -d db
 
@@ -44,3 +38,9 @@ db-down: ## Para Postgres (mantem volume/dados)
 
 db-logs: ## Segue logs do Postgres
 	docker compose logs -f db
+
+minio-up: ## Sobe MinIO (S3 local) em background — console em http://localhost:9001
+	docker compose up -d minio
+
+minio-logs: ## Segue logs do MinIO
+	docker compose logs -f minio

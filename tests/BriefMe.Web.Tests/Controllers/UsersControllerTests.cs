@@ -5,13 +5,15 @@ using BriefMe.Application.UseCases.Users.ChangePassword;
 using BriefMe.Application.UseCases.Users.ChangeUserStatus;
 using BriefMe.Application.UseCases.Users.CreateUser;
 using BriefMe.Application.UseCases.Users.DeleteUser;
+using BriefMe.Application.UseCases.Users.GetMyProfile;
+using BriefMe.Application.UseCases.Users.GetUserAvatar;
 using BriefMe.Application.UseCases.Users.GetUserById;
 using BriefMe.Application.UseCases.Users.GetUsersPaged;
+using BriefMe.Application.UseCases.Users.RemoveMyAvatar;
 using BriefMe.Application.UseCases.Users.UpdateUser;
-using BriefMe.Application.UseCases.Users.UpdateUserRoles;
+using BriefMe.Application.UseCases.Users.UploadMyAvatar;
 using BriefMe.Application.UseCases.Users;
 using BriefMe.Domain.Common;
-using BriefMe.Domain.Constants;
 using BriefMe.Domain.Enums;
 using BriefMe.Infrastructure.Auth;
 using BriefMe.Web.Auth;
@@ -50,10 +52,10 @@ public class UsersControllerTests
     };
 
     // Builds a token directly from claims (rather than JwtService + domain entities) because these
-    // tests target the Web-layer authorization pipeline (permission policies, self-service bypass),
+    // tests target the Web-layer authorization pipeline (role gates, self-service bypass),
     // not JwtService's claim-population logic — which depends on EF-fixed-up navigation properties
     // that a bare in-memory User/Role graph never populates.
-    private static string GenerateToken(JwtSettings settings, Guid userId, string[]? roles = null, string[]? permissions = null)
+    private static string GenerateToken(JwtSettings settings, Guid userId, string[]? roles = null)
     {
         var keyBytes = Encoding.UTF8.GetBytes(settings.SecretKey);
         var credentials = new SigningCredentials(new SymmetricSecurityKey(keyBytes), SecurityAlgorithms.HmacSha256);
@@ -64,7 +66,6 @@ public class UsersControllerTests
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         claims.AddRange((roles ?? []).Select(role => new Claim(ClaimTypes.Role, role)));
-        claims.AddRange((permissions ?? []).Select(permission => new Claim(CustomClaimTypes.Permission, permission)));
 
         var token = new JwtSecurityToken(
             issuer: settings.Issuer,
@@ -107,23 +108,23 @@ public class UsersControllerTests
         client.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
     [Fact]
-    public async Task Create_WhenCallerHasUsersCreatePermission_ReturnsCreatedWithLocation()
+    public async Task Create_WhenCallerIsAdmin_ReturnsCreatedWithLocation()
     {
         // Arrange
         var createdUserId = Guid.NewGuid();
-        var userResult = new UserDto(createdUserId, "Novo Usuário", "novo@briefme.com", ["Designer"]);
+        var userResult = new UserDto(createdUserId, "Novo Usuário", "novo@briefme.com", UserRole.Designer, null);
         var senderMock = new Mock<ISender>();
         senderMock.Setup(s => s.Send(It.IsAny<CreateUserCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Success(userResult));
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.PostAsJsonAsync(
             "/users",
-            new CreateUserRequest("Novo Usuário", "novo@briefme.com", "Senha123!", [Guid.NewGuid()]));
+            new CreateUserRequest("Novo Usuário", "novo@briefme.com", "Senha123!", UserRole.Designer));
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -133,19 +134,19 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task Create_WhenCallerLacksUsersCreatePermission_ReturnsForbidden()
+    public async Task Create_WhenCallerIsNotAdmin_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
         var response = await client.PostAsJsonAsync(
             "/users",
-            new CreateUserRequest("Novo Usuário", "novo@briefme.com", "Senha123!", []));
+            new CreateUserRequest("Novo Usuário", "novo@briefme.com", "Senha123!", UserRole.Designer));
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -162,12 +163,12 @@ public class UsersControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.PostAsJsonAsync(
             "/users",
-            new CreateUserRequest("Novo Usuário", "novo@briefme.com", "Senha123!", []));
+            new CreateUserRequest("Novo Usuário", "novo@briefme.com", "Senha123!", UserRole.Designer));
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -176,23 +177,23 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task Update_WhenCallerHasUsersUpdatePermission_ReturnsOkWithUserResult()
+    public async Task Update_WhenCallerIsAdmin_ReturnsOkWithUserResult()
     {
         // Arrange
         var targetId = Guid.NewGuid();
-        var userResult = new UserDto(targetId, "Ana Editada", "ana.editada@briefme.com", ["Designer"]);
+        var userResult = new UserDto(targetId, "Ana Editada", "ana.editada@briefme.com", UserRole.Designer, null);
         var senderMock = new Mock<ISender>();
         senderMock.Setup(s => s.Send(It.IsAny<UpdateUserCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Success(userResult));
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.PutAsJsonAsync(
             $"/users/{targetId}",
-            new UpdateUserRequest("Ana Editada", "ana.editada@briefme.com", []));
+            new UpdateUserRequest("Ana Editada", "ana.editada@briefme.com", UserRole.Designer));
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -201,69 +202,7 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task UpdateRoles_WhenCallerHasRolesManagePermission_ReturnsOkWithUpdatedRoles()
-    {
-        // Arrange
-        var targetId = Guid.NewGuid();
-        var userResult = new UserDto(targetId, "Ana Silva", "ana@briefme.com", ["Gestor de Design"]);
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<UpdateUserRolesCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(userResult));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
-
-        // Act
-        var response = await client.PutAsJsonAsync($"/users/{targetId}/roles", new UpdateUserRolesRequest([Guid.NewGuid()]));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<UserDto>();
-        body!.Roles.Should().ContainSingle().Which.Should().Be("Gestor de Design");
-    }
-
-    [Fact]
-    public async Task UpdateRoles_WhenCallerLacksRolesManagePermission_ReturnsForbidden()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
-
-        // Act
-        var response = await client.PutAsJsonAsync($"/users/{Guid.NewGuid()}/roles", new UpdateUserRolesRequest([]));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        senderMock.Verify(s => s.Send(It.IsAny<UpdateUserRolesCommand>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task UpdateRoles_WhenUserDoesNotExist_ReturnsNotFoundProblem()
-    {
-        // Arrange
-        var senderMock = new Mock<ISender>();
-        senderMock.Setup(s => s.Send(It.IsAny<UpdateUserRolesCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.NotFound<UserDto>("Usuário não encontrado."));
-
-        using var host = await StartHostAsync(senderMock.Object);
-        var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
-
-        // Act
-        var response = await client.PutAsJsonAsync($"/users/{Guid.NewGuid()}/roles", new UpdateUserRolesRequest([]));
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        problem!.Detail.Should().Be("Usuário não encontrado.");
-    }
-
-    [Fact]
-    public async Task Delete_WhenCallerHasUsersDeletePermission_ReturnsNoContent()
+    public async Task Delete_WhenCallerIsAdmin_ReturnsNoContent()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
@@ -272,7 +211,7 @@ public class UsersControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.DeleteAsync($"/users/{Guid.NewGuid()}");
@@ -291,7 +230,7 @@ public class UsersControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.GetAsync($"/users/{Guid.NewGuid()}");
@@ -303,14 +242,14 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task GetById_WhenCallerLacksUsersViewPermission_ReturnsForbidden()
+    public async Task GetById_WhenCallerIsNotAdmin_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Designer]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
 
         // Act
         var response = await client.GetAsync($"/users/{Guid.NewGuid()}");
@@ -320,7 +259,7 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task GetPaged_WhenCallerHasUsersViewPermission_MapsQueryParamsAndReturnsOk()
+    public async Task GetPaged_WhenCallerIsAdmin_MapsQueryParamsAndReturnsOk()
     {
         // Arrange
         GetUsersPagedQuery? capturedQuery = null;
@@ -332,7 +271,7 @@ public class UsersControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.GetAsync("/users?page=2&pageSize=10&search=ana&status=Active");
@@ -347,7 +286,7 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task ChangeStatus_WhenCallerHasUsersManagePermission_ReturnsNoContent()
+    public async Task ChangeStatus_WhenCallerIsAdmin_ReturnsNoContent()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
@@ -356,7 +295,7 @@ public class UsersControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Administrador]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.PatchAsync(
@@ -368,7 +307,7 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task ChangePassword_WhenCallerChangesOwnPasswordWithoutResetPermission_ReturnsNoContent()
+    public async Task ChangePassword_WhenNonAdminChangesOwnPassword_ReturnsNoContent()
     {
         // Arrange
         var selfId = Guid.NewGuid();
@@ -378,7 +317,7 @@ public class UsersControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), selfId, roles: [Roles.Solicitante]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), selfId, roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.PatchAsync(
@@ -390,14 +329,14 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task ChangePassword_WhenCallerChangesAnotherUsersPasswordWithoutResetPermission_ReturnsForbidden()
+    public async Task ChangePassword_WhenNonAdminChangesAnotherUsersPassword_ReturnsForbidden()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [Roles.Solicitante]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Requester)]));
 
         // Act
         var response = await client.PatchAsync(
@@ -410,7 +349,7 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task ChangePassword_WhenCallerHasUsersResetPasswordPermissionForAnotherUser_ReturnsNoContent()
+    public async Task ChangePassword_WhenCallerIsAdminForAnotherUser_ReturnsNoContent()
     {
         // Arrange
         var senderMock = new Mock<ISender>();
@@ -419,7 +358,7 @@ public class UsersControllerTests
 
         using var host = await StartHostAsync(senderMock.Object);
         var client = host.GetTestClient();
-        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), permissions: ["users.reset-password"]));
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
 
         // Act
         var response = await client.PatchAsync(
@@ -428,5 +367,156 @@ public class UsersControllerTests
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task GetMe_WhenCallerIsAuthenticatedWithAnyRole_ReturnsOwnProfile()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var profile = new UserDto(userId, "Ana", "ana@briefme.com", UserRole.Requester, Guid.NewGuid());
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetMyProfileQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(profile));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), userId, roles: [nameof(UserRole.Requester)]));
+
+        // Act
+        var response = await client.GetFromJsonAsync<UserDto>("/users/me");
+
+        // Assert
+        response.Should().BeEquivalentTo(profile);
+    }
+
+    [Fact]
+    public async Task UploadMyAvatar_WhenCallerIsAuthenticated_SendsFileBytesAndLength()
+    {
+        // Arrange
+        byte[] bytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        UploadMyAvatarCommand? sent = null;
+        byte[]? sentBytes = null;
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<UploadMyAvatarCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<UserDto>>, CancellationToken>((command, _) =>
+            {
+                sent = (UploadMyAvatarCommand)command;
+                using var copy = new MemoryStream();
+                sent.Content.CopyTo(copy);
+                sentBytes = copy.ToArray();
+            })
+            .ReturnsAsync(Result.Success(new UserDto(Guid.NewGuid(), "Ana", "ana@briefme.com", UserRole.Designer, Guid.NewGuid())));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Designer)]));
+        using var form = new MultipartFormDataContent { { new ByteArrayContent(bytes), "file", "me.png" } };
+
+        // Act
+        var response = await client.PutAsync("/users/me/avatar", form);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        new { sent!.Length, Bytes = sentBytes }.Should().BeEquivalentTo(new { Length = (long)bytes.Length, Bytes = bytes });
+    }
+
+    [Fact]
+    public async Task UploadMyAvatar_WhenCallerIsAnonymous_ReturnsUnauthorized()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        using var form = new MultipartFormDataContent { { new ByteArrayContent([1, 2, 3]), "file", "me.png" } };
+
+        // Act
+        var response = await client.PutAsync("/users/me/avatar", form);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task RemoveMyAvatar_WhenCallerIsAuthenticated_ReturnsOk()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<RemoveMyAvatarCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new UserDto(Guid.NewGuid(), "Ana", "ana@briefme.com", UserRole.Admin, null)));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+        Authenticate(client, GenerateToken(CreateJwtSettings(), Guid.NewGuid(), roles: [nameof(UserRole.Admin)]));
+
+        // Act
+        var response = await client.DeleteAsync("/users/me/avatar");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task GetAvatar_WhenCallerIsAnonymous_StreamsImageWithNoSniff()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.Is<GetUserAvatarQuery>(q => q.UserId == userId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new AvatarFileDto(new MemoryStream([1, 2, 3]), "image/png")));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/users/{userId}/avatar?v=abc");
+
+        // Assert
+        new
+        {
+            response.StatusCode,
+            ContentType = response.Content.Headers.ContentType?.MediaType,
+            NoSniff = response.Headers.GetValues("X-Content-Type-Options").Single(),
+            Bytes = await response.Content.ReadAsByteArrayAsync()
+        }.Should().BeEquivalentTo(new { StatusCode = HttpStatusCode.OK, ContentType = "image/png", NoSniff = "nosniff", Bytes = new byte[] { 1, 2, 3 } });
+    }
+
+    [Theory]
+    [InlineData("?v=abc", "public, max-age=31536000, immutable")]
+    [InlineData("", "no-cache")]
+    public async Task GetAvatar_WhenServed_CachesImmutablyOnlyForVersionedUrls(string query, string expectedCacheControl)
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetUserAvatarQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new AvatarFileDto(new MemoryStream([1]), "image/png")));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/users/{Guid.NewGuid()}/avatar{query}");
+
+        // Assert
+        response.Headers.CacheControl!.ToString().Should().Be(expectedCacheControl);
+    }
+
+    [Fact]
+    public async Task GetAvatar_WhenUserHasNoAvatar_ReturnsNotFound()
+    {
+        // Arrange
+        var senderMock = new Mock<ISender>();
+        senderMock.Setup(s => s.Send(It.IsAny<GetUserAvatarQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.NotFound<AvatarFileDto>("Avatar não encontrado."));
+
+        using var host = await StartHostAsync(senderMock.Object);
+        var client = host.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/users/{Guid.NewGuid()}/avatar");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

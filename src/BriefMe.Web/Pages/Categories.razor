@@ -1,0 +1,204 @@
+@page "/categorias"
+@attribute [Authorize(Roles = nameof(UserRole.Admin))]
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Domain.Common
+@using BriefMe.Web.Contracts.Categories
+@using Microsoft.AspNetCore.Authorization
+@inject ICategoriesApiClient CategoriesApi
+@inject AuthSessionStore SessionStore
+
+<PageTitle>Categorias</PageTitle>
+
+<PageContainer>
+    <PageHeader Title="Categorias"
+                Description="Tipos de trabalho que os solicitantes escolhem ao abrir um briefing. Categorias inativas somem do formulário, mas continuam nos briefings existentes." />
+
+    <Card Class="mt-8">
+        <form @onsubmit="SaveAsync" @onsubmit:preventDefault="true" class="flex flex-col gap-4 p-6">
+            <CardTitle>@(_editingId is null ? "Nova categoria" : "Editar categoria")</CardTitle>
+
+            @if (_formError is not null)
+            {
+                <Alert>@_formError</Alert>
+            }
+
+            <div class="flex flex-wrap gap-3">
+                <FormField Label="Nome" For="name" Class="min-w-[220px] flex-1">
+                    <Input id="name" @bind-Value="_name" disabled="@_isSaving" />
+                </FormField>
+                <FormField Label="Descrição (opcional)" For="description" Class="min-w-[220px] flex-[2]">
+                    <Input id="description" @bind-Value="_description" disabled="@_isSaving" />
+                </FormField>
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+                @if (_editingId is not null)
+                {
+                    <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="ResetForm" Disabled="_isSaving">Cancelar</Button>
+                }
+                <Button Type="submit" Icon="IconName.Save" Loading="_isSaving">
+                    @(_isSaving ? "Salvando..." : _editingId is null ? "Adicionar" : "Salvar")
+                </Button>
+            </div>
+        </form>
+    </Card>
+
+    <Card Class="mt-5 overflow-hidden">
+        @if (_isLoading)
+        {
+            <LoadingState />
+        }
+        else if (_loadError is not null)
+        {
+            <EmptyState Title="@_loadError" Tone="EmptyStateTone.Danger">
+                <Button Variant="ButtonVariant.Secondary" Icon="IconName.RotateCcw" OnClick="LoadAsync">Tentar novamente</Button>
+            </EmptyState>
+        }
+        else if (_categories.Count == 0)
+        {
+            <EmptyState Title="Nenhuma categoria cadastrada." Icon="IconName.Tag" />
+        }
+        else
+        {
+            <Table>
+                <Header>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead />
+                </Header>
+                <ChildContent>
+                    @foreach (var category in _categories)
+                    {
+                        <TableRow>
+                            <TableCell Primary="true">@category.Name</TableCell>
+                            <TableCell>@(category.Description ?? "—")</TableCell>
+                            <TableCell>
+                                @if (category.IsActive)
+                                {
+                                    <Badge Variant="BadgeVariant.Success">Ativa</Badge>
+                                }
+                                else
+                                {
+                                    <Badge>Inativa</Badge>
+                                }
+                            </TableCell>
+                            <TableCell Class="text-right">
+                                <div class="flex items-center justify-end gap-3">
+                                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Icon="IconName.Pencil" OnClick="() => StartEdit(category)">Editar</Button>
+                                    <Button Variant="ButtonVariant.Link" Size="ButtonSize.Sm" Class="text-muted!" Icon="IconName.Power"
+                                            OnClick="() => ToggleStatusAsync(category)" Disabled="_togglingId == category.Id">
+                                        @(category.IsActive ? "Desativar" : "Ativar")
+                                    </Button>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    }
+                </ChildContent>
+            </Table>
+        }
+    </Card>
+
+    @if (_rowError is not null)
+    {
+        <Alert Class="mt-3">@_rowError</Alert>
+    }
+</PageContainer>
+
+@code {
+    private bool _isLoading = true;
+    private string? _loadError;
+    private IReadOnlyList<CategoryDto> _categories = [];
+
+    private Guid? _editingId;
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private bool _isSaving;
+    private string? _formError;
+
+    private Guid? _togglingId;
+    private string? _rowError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No token before the interactive restore — same guard as the other admin screens.
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        var result = await CategoriesApi.GetCategoriesAsync();
+        if (result.IsSuccess)
+            _categories = result.Value;
+        else
+            _loadError = result.Error;
+
+        _isLoading = false;
+    }
+
+    private void StartEdit(CategoryDto category)
+    {
+        _editingId = category.Id;
+        _name = category.Name;
+        _description = category.Description ?? string.Empty;
+        _formError = null;
+    }
+
+    private void ResetForm()
+    {
+        _editingId = null;
+        _name = string.Empty;
+        _description = string.Empty;
+        _formError = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        _formError = null;
+        _isSaving = true;
+
+        var description = string.IsNullOrWhiteSpace(_description) ? null : _description;
+        var result = _editingId is { } id
+            ? await CategoriesApi.UpdateCategoryAsync(id, new UpdateCategoryRequest(_name, description))
+            : await CategoriesApi.CreateCategoryAsync(new CreateCategoryRequest(_name, description));
+
+        _isSaving = false;
+
+        if (result.IsFailure)
+        {
+            _formError = FirstMessage(result);
+            return;
+        }
+
+        ResetForm();
+        await LoadAsync();
+    }
+
+    private async Task ToggleStatusAsync(CategoryDto category)
+    {
+        _rowError = null;
+        _togglingId = category.Id;
+
+        var result = await CategoriesApi.ChangeCategoryStatusAsync(category.Id, !category.IsActive);
+
+        _togglingId = null;
+
+        if (result.IsFailure)
+        {
+            _rowError = FirstMessage(result);
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private static string? FirstMessage(Result result) =>
+        result.Errors.Count > 0 ? result.Errors[0].ErrorMessage : result.Error;
+}

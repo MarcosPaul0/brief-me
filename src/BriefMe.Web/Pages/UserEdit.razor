@@ -1,5 +1,5 @@
 @page "/usuarios/{Id:guid}"
-@attribute [Authorize(Policy = "users.update")]
+@attribute [Authorize(Roles = nameof(UserRole.Admin))]
 @using Microsoft.AspNetCore.Authorization
 
 <PageTitle>Editar usuário</PageTitle>

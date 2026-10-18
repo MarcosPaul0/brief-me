@@ -9,9 +9,6 @@ public interface IUserRepository : IRepository<User>
 
     Task<bool> EmailExistsAsync(Email email, Guid? ignoreId = null, CancellationToken cancellationToken = default);
 
-    Task<User?> GetByIdWithRolesAsync(Guid id, CancellationToken cancellationToken = default);
-
-    Task<User?> GetByIdWithRolesAndPermissionsAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns the users matching the given ids, in a single query. Feeds read models that must show a

@@ -1,5 +1,4 @@
 using BriefMe.Application.Common.Dtos;
-using BriefMe.Application.UseCases.Roles;
 using BriefMe.Application.UseCases.Users;
 using BriefMe.Domain.Common;
 using BriefMe.Web.Contracts.Common;
@@ -19,13 +18,12 @@ public sealed class UsersApiClient : IUsersApiClient
     private const string LoadUsersFailureMessage = "Não foi possível carregar os usuários. Tente novamente.";
     private const string LoadUserFailureMessage = "Não foi possível carregar o usuário. Tente novamente.";
     private const string SaveUserFailureMessage = "Não foi possível salvar o usuário. Tente novamente.";
-    private const string SaveUserRolesFailureMessage = "Não foi possível salvar os perfis do usuário. Tente novamente.";
 
     // The field a duplicate-email 409 (which carries no per-field errors dict) is attributed to.
     private const string EmailField = nameof(CreateUserRequest.Email);
 
     // ASP.NET Core serializes controller responses in camelCase; this binds them back onto the
-    // PascalCase record parameters of PagedResponse/UserListItemDto/RoleListItemDto.
+    // PascalCase record parameters of PagedResponse/UserListItemDto.
     private static readonly JsonSerializerOptions ResponseJsonOptions = ApiProblemMapper.JsonOptions;
 
     private readonly AuthenticatedApiClient _api;
@@ -55,24 +53,6 @@ public sealed class UsersApiClient : IUsersApiClient
         catch (HttpRequestException)
         {
             return Result.Failure<PagedResponse<UserListItemDto>>(LoadUsersFailureMessage);
-        }
-    }
-
-    public async Task<IReadOnlyList<RoleListItemDto>> GetRolesAsync(CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            using var response = await _api.GetAsync("roles", cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-                return [];
-
-            var roles = await response.Content.ReadFromJsonAsync<List<RoleListItemDto>>(ResponseJsonOptions, cancellationToken);
-            return roles ?? [];
-        }
-        catch (HttpRequestException)
-        {
-            return [];
         }
     }
 
@@ -122,19 +102,6 @@ public sealed class UsersApiClient : IUsersApiClient
         }
     }
 
-    public async Task<Result<UserDto>> UpdateUserRolesAsync(Guid id, UpdateUserRolesRequest request, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            using var response = await _api.PutAsJsonAsync($"users/{id}/roles", request, ResponseJsonOptions, cancellationToken);
-            return await ReadUserOrFailureAsync(response, cancellationToken, SaveUserRolesFailureMessage);
-        }
-        catch (HttpRequestException)
-        {
-            return Result.Failure<UserDto>(SaveUserRolesFailureMessage);
-        }
-    }
-
     private static async Task<Result<UserDto>> ReadUserOrFailureAsync(HttpResponseMessage response, CancellationToken cancellationToken, string? failureMessage = null)
     {
         var fallback = failureMessage ?? SaveUserFailureMessage;
@@ -171,8 +138,8 @@ public sealed class UsersApiClient : IUsersApiClient
         if (query.Status is { } status)
             parameters["status"] = status.ToString();
 
-        if (query.RoleId is { } roleId)
-            parameters["roleId"] = roleId.ToString();
+        if (query.Role is { } role)
+            parameters["role"] = role.ToString();
 
         return QueryHelpers.AddQueryString("users", parameters);
     }

@@ -1,166 +1,98 @@
 @using BriefMe.Application.Common.Dtos
-@using BriefMe.Application.UseCases.Roles
 @using BriefMe.Application.UseCases.Users
 @using BriefMe.Domain.Common
+@using BriefMe.Domain.Enums
 @using BriefMe.Web.Contracts.Users
 @using System.ComponentModel.DataAnnotations
 @inject IUsersApiClient UsersApi
 @inject AuthSessionStore SessionStore
 @inject NavigationManager NavigationManager
 
-<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
-    <div class="mx-auto max-w-[560px]">
-        <div class="flex items-center justify-between gap-4">
-            <div>
-                <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">@Title</h1>
-                <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">@Subtitle</p>
-            </div>
-        </div>
+<PageContainer>
+    <PageHeader Title="@Title" Description="@Subtitle" />
 
-        <div class="mt-[30px]">
-            @if (_isLoading)
-            {
-                <div class="flex items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-[15px] text-[#999999]">
-                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-[#262626] border-t-white"></span>
-                    <span>Carregando...</span>
-                </div>
-            }
-            else if (_notFound)
-            {
-                <div class="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-center">
-                    <p class="text-[15px] text-white">Usuário não encontrado</p>
-                    <button type="button" @onclick="NavigateToList"
-                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
-                        Voltar para a lista
-                    </button>
-                </div>
-            }
-            else if (_catalogUnavailable)
-            {
-                <div class="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] px-6 py-24 text-center">
-                    <p class="text-[15px] text-white">Não foi possível carregar os perfis de acesso</p>
-                    <p class="max-w-[400px] text-[14px] text-[#999999]">
-                        O gerenciamento de usuários exige a permissão <span class="text-white">roles.manage</span> para
-                        listar e atribuir perfis. Solicite o acesso e tente novamente.
-                    </p>
-                    <button type="button" @onclick="NavigateToList"
-                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
-                        Voltar para a lista
-                    </button>
-                </div>
-            }
-            else if (_loadError is not null)
-            {
-                <div class="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-center">
-                    <p class="text-[15px] text-[#ef4444]">@_loadError</p>
-                    <button type="button" @onclick="NavigateToList"
-                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
-                        Voltar para a lista
-                    </button>
-                </div>
-            }
-            else
-            {
+    <div class="mt-8">
+        @if (_isLoading)
+        {
+            <Card>
+                <LoadingState />
+            </Card>
+        }
+        else if (_notFound || _loadError is not null)
+        {
+            <Card>
+                <EmptyState Title="@(_loadError ?? "Usuário não encontrado")" Tone="@(_loadError is null ? EmptyStateTone.Default : EmptyStateTone.Danger)">
+                    <Button Variant="ButtonVariant.Secondary" Icon="IconName.ArrowLeft" OnClick="NavigateToList">Voltar para a lista</Button>
+                </EmptyState>
+            </Card>
+        }
+        else
+        {
+            <Card>
                 <EditForm EditContext="_editContext" FormName="userEditor" OnValidSubmit="HandleValidSubmitAsync"
-                          class="flex flex-col gap-[15px] rounded-[20px] border border-[#262626] bg-[#141414] p-[30px]">
+                          class="grid gap-x-6 gap-y-5 p-6 sm:p-8 md:grid-cols-2">
                     <DataAnnotationsValidator />
 
                     @if (_generalError is not null)
                     {
-                        <div role="alert" class="rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
-                            @_generalError
-                        </div>
+                        <Alert Class="md:col-span-2">@_generalError</Alert>
                     }
 
-                    <div class="flex flex-col gap-1">
-                        <label for="fullName" class="text-[13px] font-medium text-[#999999]">Nome</label>
-                        <InputText id="fullName" @bind-Value="_model.FullName" disabled="@_isSubmitting"
-                                   class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50" />
-                        <ValidationMessage For="() => _model.FullName" class="text-[13px] text-[#ef4444]" />
-                    </div>
+                    <FormField Label="Nome" For="fullName">
+                        <FormInput id="fullName" @bind-Value="_model.FullName" disabled="@_isSubmitting" />
+                        <FormMessage For="() => _model.FullName" />
+                    </FormField>
 
-                    <div class="flex flex-col gap-1">
-                        <label for="email" class="text-[13px] font-medium text-[#999999]">E-mail</label>
-                        <InputText id="email" @bind-Value="_model.Email" type="email" autocomplete="off" disabled="@_isSubmitting"
-                                   class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50" />
-                        <ValidationMessage For="() => _model.Email" class="text-[13px] text-[#ef4444]" />
-                    </div>
+                    <FormField Label="E-mail" For="email">
+                        <FormInput id="email" @bind-Value="_model.Email" type="email" autocomplete="off" disabled="@_isSubmitting" />
+                        <FormMessage For="() => _model.Email" />
+                    </FormField>
 
                     @if (!IsEdit)
                     {
-                        <div class="flex flex-col gap-1">
-                            <label for="password" class="text-[13px] font-medium text-[#999999]">Senha</label>
-                            <InputText id="password" @bind-Value="_model.Password" type="password" autocomplete="new-password" disabled="@_isSubmitting"
-                                       class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50" />
-                            <ValidationMessage For="() => _model.Password" class="text-[13px] text-[#ef4444]" />
-                            <p class="text-[12px] text-[#999999]">Mínimo 8 caracteres, com maiúscula, minúscula e número.</p>
-                        </div>
+                        <FormField Label="Senha" For="password" Description="Mínimo 8 caracteres, com maiúscula, minúscula e número.">
+                            <FormInput id="password" @bind-Value="_model.Password" type="password" autocomplete="new-password" disabled="@_isSubmitting" />
+                            <FormMessage For="() => _model.Password" />
+                        </FormField>
                     }
 
-                    <div class="flex flex-col gap-1">
-                        <span class="text-[13px] font-medium text-[#999999]">Perfis</span>
-                        <div class="flex flex-col gap-2 rounded-[10px] border border-[#262626] bg-[#1c1c1c] p-[14px]">
-                            @foreach (var role in _roles)
+                    <FormField Label="Perfil" For="role">
+                        <FormSelect id="role" TValue="UserRole" @bind-Value="_model.Role" disabled="@_isSubmitting">
+                            @foreach (var role in UserRoleLabels.All)
                             {
-                                <label class="flex items-center gap-2 text-[15px] text-white">
-                                    <input type="checkbox" checked="@_selectedRoleIds.Contains(role.RoleId)" disabled="@_isSubmitting"
-                                           @onchange="e => ToggleRole(role.RoleId, (bool)e.Value!)"
-                                           class="h-4 w-4 rounded border-[#262626] bg-[#141414] accent-[#0099ff]" />
-                                    <span>@role.Name</span>
-                                </label>
+                                <option value="@role">@UserRoleLabels.Label(role)</option>
                             }
-                        </div>
-                        @if (_rolesError is not null)
-                        {
-                            <span class="text-[13px] text-[#ef4444]">@_rolesError</span>
-                        }
-                    </div>
+                        </FormSelect>
+                        <FormMessage For="() => _model.Role" />
+                    </FormField>
 
-                    <div class="mt-2 flex items-center justify-end gap-2">
-                        <button type="button" @onclick="NavigateToList" disabled="@_isSubmitting"
-                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:opacity-50">
-                            Cancelar
-                        </button>
-                        <button type="submit" disabled="@_isSubmitting"
-                                class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
-                            @if (_isSubmitting)
-                            {
-                                <span class="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black"></span>
-                                <span>Salvando...</span>
-                            }
-                            else
-                            {
-                                <span>Salvar</span>
-                            }
-                        </button>
+                    <div class="mt-2 flex items-center justify-end gap-2 md:col-span-2">
+                        <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="NavigateToList" Disabled="_isSubmitting">Cancelar</Button>
+                        <Button Type="submit" Icon="IconName.Save" Loading="_isSubmitting">@(_isSubmitting ? "Salvando..." : "Salvar")</Button>
                     </div>
                 </EditForm>
-            }
-        </div>
+            </Card>
+        }
     </div>
-</div>
+</PageContainer>
 
 @code {
     /// <summary>Null in create mode; the target user's id in edit mode.</summary>
     [Parameter]
     public Guid? UserId { get; set; }
 
-    private static readonly string[] FieldNames = [nameof(UserFormModel.FullName), nameof(UserFormModel.Email), nameof(UserFormModel.Password)];
+    private static readonly string[] FieldNames = [nameof(UserFormModel.FullName), nameof(UserFormModel.Email), nameof(UserFormModel.Password), nameof(UserFormModel.Role)];
 
     private bool IsEdit => UserId.HasValue;
     private string Title => IsEdit ? "Editar usuário" : "Novo usuário";
-    private string Subtitle => IsEdit ? "Atualize os dados e os perfis do usuário." : "Preencha os dados para cadastrar um novo usuário.";
+    private string Subtitle => IsEdit ? "Atualize os dados e o perfil do usuário." : "Preencha os dados para cadastrar um novo usuário.";
 
     private bool _isLoading = true;
     private bool _notFound;
-    private bool _catalogUnavailable;
     private string? _loadError;
     private string? _generalError;
-    private string? _rolesError;
     private bool _isSubmitting;
 
-    private IReadOnlyList<RoleListItemDto> _roles = [];
-    private readonly HashSet<Guid> _selectedRoleIds = [];
     private UserFormModel _model = new();
     private EditContext _editContext = default!;
     private ValidationMessageStore _messageStore = default!;
@@ -172,16 +104,6 @@
             return;
 
         await SessionStore.RestorationCompleted;
-
-        // The role catalog is mandatory: without it there is no picker, and on edit we could not
-        // reconstruct the current role ids (→ risk of wiping roles on save). Fail closed.
-        _roles = await UsersApi.GetRolesAsync();
-        if (_roles.Count == 0)
-        {
-            _catalogUnavailable = true;
-            _isLoading = false;
-            return;
-        }
 
         if (IsEdit)
         {
@@ -200,9 +122,7 @@
             _model.FullName = result.Value.FullName;
             _model.Email = result.Value.Email;
 
-            // GET /users/{id} returns role *names*; map them back to ids via the catalog (names are unique).
-            foreach (var role in _roles.Where(r => result.Value.Roles.Contains(r.Name)))
-                _selectedRoleIds.Add(role.RoleId);
+            _model.Role = result.Value.Role;
         }
 
         _model.RequirePassword = !IsEdit;
@@ -218,35 +138,16 @@
         _editContext.OnFieldChanged += (_, args) => _messageStore.Clear(args.FieldIdentifier);
     }
 
-    private void ToggleRole(Guid roleId, bool selected)
-    {
-        if (selected)
-            _selectedRoleIds.Add(roleId);
-        else
-            _selectedRoleIds.Remove(roleId);
-
-        _rolesError = null;
-    }
-
     private async Task HandleValidSubmitAsync()
     {
         _generalError = null;
-        _rolesError = null;
         _messageStore.Clear();
-
-        // UI rule (backlog): one or more roles. The domain itself permits zero, so this is enforced here.
-        if (_selectedRoleIds.Count == 0)
-        {
-            _rolesError = "Selecione ao menos um perfil.";
-            return;
-        }
 
         _isSubmitting = true;
 
-        var roleIds = _selectedRoleIds.ToList();
         var result = IsEdit
-            ? await UsersApi.UpdateUserAsync(UserId!.Value, new UpdateUserRequest(_model.FullName, _model.Email, roleIds))
-            : await UsersApi.CreateUserAsync(new CreateUserRequest(_model.FullName, _model.Email, _model.Password, roleIds));
+            ? await UsersApi.UpdateUserAsync(UserId!.Value, new UpdateUserRequest(_model.FullName, _model.Email, _model.Role))
+            : await UsersApi.CreateUserAsync(new CreateUserRequest(_model.FullName, _model.Email, _model.Password, _model.Role));
 
         if (result.IsSuccess)
         {
@@ -295,6 +196,8 @@
         public string Email { get; set; } = string.Empty;
 
         public string Password { get; set; } = string.Empty;
+
+        public UserRole Role { get; set; } = UserRole.Requester;
 
         /// <summary>True only in create mode — mirrors the server-side password policy on the client.</summary>
         public bool RequirePassword { get; set; }

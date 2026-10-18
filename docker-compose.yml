@@ -17,6 +17,8 @@ services:
       timeout: 5s
       retries: 5
 
+  # S3-compatible object store for user avatars. :9000 is the S3 API the app talks to, :9001 the web
+  # console (login briefme / briefme123). The app creates the bucket on first upload.
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     container_name: briefme-minio

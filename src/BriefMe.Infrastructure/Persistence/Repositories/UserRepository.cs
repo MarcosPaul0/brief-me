@@ -8,12 +8,7 @@ namespace BriefMe.Infrastructure.Persistence.Repositories;
 public class UserRepository(AppDbContext dbContext) : EfRepository<User>(dbContext), IUserRepository
 {
     public async Task<User?> GetByEmailAsync(Email email, CancellationToken cancellationToken = default) =>
-        await DbContext.Users
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role!)
-                    .ThenInclude(r => r.RolePermissions)
-                        .ThenInclude(rp => rp.Permission)
-            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+        await DbContext.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
     public async Task<bool> EmailExistsAsync(Email email, Guid? ignoreId = null, CancellationToken cancellationToken = default)
     {
@@ -24,20 +19,6 @@ public class UserRepository(AppDbContext dbContext) : EfRepository<User>(dbConte
 
         return await query.AnyAsync(cancellationToken);
     }
-
-    public async Task<User?> GetByIdWithRolesAsync(Guid id, CancellationToken cancellationToken = default) =>
-        await DbContext.Users
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
-
-    public async Task<User?> GetByIdWithRolesAndPermissionsAsync(Guid id, CancellationToken cancellationToken = default) =>
-        await DbContext.Users
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role!)
-                    .ThenInclude(r => r.RolePermissions)
-                        .ThenInclude(rp => rp.Permission)
-            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<User>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
     {
@@ -56,10 +37,7 @@ public class UserRepository(AppDbContext dbContext) : EfRepository<User>(dbConte
         UserSort sort,
         CancellationToken cancellationToken = default)
     {
-        // Roles are eager-loaded for the page only; the count query has no use for them.
-        var query = Filtered(DbContext.Users
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role), filter);
+        var query = Filtered(DbContext.Users, filter);
 
         return await ApplySort(query, sort)
             .Skip((page - 1) * pageSize)
@@ -81,8 +59,8 @@ public class UserRepository(AppDbContext dbContext) : EfRepository<User>(dbConte
         if (filter.Status is not null)
             query = query.Where(u => u.Status == filter.Status);
 
-        if (filter.RoleId is not null)
-            query = query.Where(u => u.UserRoles.Any(ur => ur.RoleId == filter.RoleId));
+        if (filter.Role is not null)
+            query = query.Where(u => u.Role == filter.Role);
 
         return query;
     }

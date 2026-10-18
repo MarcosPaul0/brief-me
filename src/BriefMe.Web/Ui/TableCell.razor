@@ -1,0 +1,16 @@
+@* Body cell. Primary marks the row's identifying column (title, name) in semibold ink. *@
+<td class="@ClassNames.Join("px-5 py-5 text-body-sm", Primary ? "font-semibold text-ink" : "text-body", Class)" @attributes="AdditionalAttributes">@ChildContent</td>
+
+@code {
+    [Parameter]
+    public bool Primary { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+}

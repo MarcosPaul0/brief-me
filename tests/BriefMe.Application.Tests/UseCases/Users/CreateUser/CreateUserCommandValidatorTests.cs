@@ -1,3 +1,4 @@
+using BriefMe.Domain.Enums;
 using BriefMe.Application.UseCases.Users.CreateUser;
 using FluentAssertions;
 using FluentValidation.TestHelper;
@@ -12,7 +13,7 @@ public class CreateUserCommandValidatorTests
     public void Validate_WhenAllFieldsAreValid_HasNoErrors()
     {
         // Arrange
-        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", []);
+        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", UserRole.Requester);
 
         // Act
         var result = _validator.TestValidate(command);
@@ -27,7 +28,7 @@ public class CreateUserCommandValidatorTests
     public void Validate_WhenFullNameIsEmpty_HasErrorForFullName(string fullName)
     {
         // Arrange
-        var command = new CreateUserCommand(fullName, "ana@briefme.com", "Senha123", []);
+        var command = new CreateUserCommand(fullName, "ana@briefme.com", "Senha123", UserRole.Requester);
 
         // Act
         var result = _validator.TestValidate(command);
@@ -42,7 +43,7 @@ public class CreateUserCommandValidatorTests
     public void Validate_WhenEmailIsInvalid_HasErrorForEmail(string email)
     {
         // Arrange
-        var command = new CreateUserCommand("Ana Silva", email, "Senha123", []);
+        var command = new CreateUserCommand("Ana Silva", email, "Senha123", UserRole.Requester);
 
         // Act
         var result = _validator.TestValidate(command);
@@ -59,12 +60,25 @@ public class CreateUserCommandValidatorTests
     public void Validate_WhenPasswordDoesNotMeetPolicy_HasErrorForPassword(string password)
     {
         // Arrange
-        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", password, []);
+        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", password, UserRole.Requester);
 
         // Act
         var result = _validator.TestValidate(command);
 
         // Assert
         result.ShouldHaveValidationErrorFor(x => x.Password);
+    }
+
+    [Fact]
+    public void Validate_WhenRoleIsUndefined_HasErrorForRole()
+    {
+        // Arrange
+        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", (UserRole)99);
+
+        // Act
+        var result = _validator.TestValidate(command);
+
+        // Assert
+        result.ShouldHaveValidationErrorFor(x => x.Role);
     }
 }

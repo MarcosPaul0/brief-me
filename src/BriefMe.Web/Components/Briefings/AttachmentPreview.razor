@@ -1,0 +1,126 @@
+@*
+    One briefing attachment with the preview its kind allows (ATT-15/16): image thumbnail that enlarges, PDF in
+    the browser viewer inside a dialog, inline audio and video players. When the bytes fail to load (expired
+    token, object gone, storage down) the item degrades to a file card with "Recarregar" (ATT-17) — never a broken
+    image or a dead player. A PDF in an <iframe> raises no error event, so its card stays; the dialog shows the
+    browser's error page and the new-tab link recovers.
+*@
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Domain.Enums
+
+@if (_failed)
+{
+    <div class="flex items-center gap-3 rounded-lg border border-hairline bg-surface-soft p-4">
+        @FileGlyph
+        <div class="min-w-0 flex-1">
+            @FileText
+            <p class="mt-1 text-caption text-error-ink">Pré-visualização indisponível.</p>
+        </div>
+        <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Icon="IconName.RotateCcw" OnClick="OnReload">Recarregar</Button>
+    </div>
+}
+else
+{
+    switch (Attachment.Kind)
+    {
+        case AttachmentKind.Image:
+            <div class="flex flex-col gap-2">
+                <button type="button" class="block overflow-hidden rounded-lg border border-hairline bg-surface-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                        aria-label="@($"Ampliar {Attachment.FileName}")" @onclick="() => _dialogOpen = true">
+                    <img src="@Url" alt="@Attachment.FileName" loading="lazy" class="aspect-video w-full object-cover" @onerror="Fail" />
+                </button>
+                @FileText
+            </div>
+            <Dialog Open="_dialogOpen" OnClose="CloseDialog" Title="@Attachment.FileName" Class="max-w-4xl!">
+                <img src="@Url" alt="@Attachment.FileName" class="mt-4 max-h-[75vh] w-full rounded-md object-contain" />
+            </Dialog>
+            break;
+
+        case AttachmentKind.Pdf:
+            <div class="flex flex-col gap-3 rounded-lg border border-hairline bg-surface-soft p-4">
+                <div class="flex items-center gap-3">
+                    @FileGlyph
+                    <div class="min-w-0 flex-1">@FileText</div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <Button Variant="ButtonVariant.Outline" Size="ButtonSize.Sm" Icon="IconName.Eye" OnClick="() => _dialogOpen = true">Visualizar</Button>
+                    <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Icon="IconName.ExternalLink" Href="@Url"
+                            target="_blank" rel="noopener noreferrer">Abrir em nova aba</Button>
+                </div>
+            </div>
+            <Dialog Open="_dialogOpen" OnClose="CloseDialog" Title="@Attachment.FileName" Class="max-w-5xl!">
+                <iframe src="@Url" title="@Attachment.FileName" class="mt-4 h-[75vh] w-full rounded-md border border-hairline bg-surface-card"></iframe>
+            </Dialog>
+            break;
+
+        case AttachmentKind.Audio:
+            <div class="flex flex-col gap-3 rounded-lg border border-hairline bg-surface-soft p-4">
+                <div class="flex items-center gap-3">
+                    @FileGlyph
+                    <div class="min-w-0 flex-1">@FileText</div>
+                </div>
+                <audio controls preload="metadata" src="@Url" class="w-full" @onerror="Fail">
+                    Seu navegador não reproduz este áudio.
+                </audio>
+            </div>
+            break;
+
+        default:
+            <div class="flex flex-col gap-2">
+                <video controls preload="metadata" src="@Url" class="aspect-video w-full rounded-lg bg-surface-dark" @onerror="Fail">
+                    Seu navegador não reproduz este vídeo.
+                </video>
+                @FileText
+            </div>
+            break;
+    }
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public Guid BriefingId { get; set; }
+
+    [Parameter, EditorRequired]
+    public BriefingAttachmentDto Attachment { get; set; } = default!;
+
+    /// <summary>Reloads the briefing, which issues fresh content tokens.</summary>
+    [Parameter]
+    public EventCallback OnReload { get; set; }
+
+    private string? _renderedUrl;
+    private bool _failed;
+    private bool _dialogOpen;
+
+    private string Url => AttachmentLabels.ContentUrl(BriefingId, Attachment);
+
+    protected override void OnParametersSet()
+    {
+        // A reload brings a new token, hence a new URL: give the preview another chance.
+        if (Url == _renderedUrl)
+            return;
+
+        _renderedUrl = Url;
+        _failed = false;
+    }
+
+    private void Fail()
+    {
+        _failed = true;
+        _dialogOpen = false;
+    }
+
+    private void CloseDialog() => _dialogOpen = false;
+
+    private RenderFragment FileGlyph => __builder =>
+    {
+        <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-card text-ink">
+            <Icon Name="AttachmentLabels.Icon(Attachment.Kind)" Size="20" />
+        </span>
+    };
+
+    private RenderFragment FileText => __builder =>
+    {
+        <p class="truncate text-body-sm font-semibold text-ink" title="@Attachment.FileName">@Attachment.FileName</p>
+        <p class="text-caption text-muted">@AttachmentLabels.Kind(Attachment.Kind) · @AttachmentLabels.Size(Attachment.SizeBytes)</p>
+    };
+}

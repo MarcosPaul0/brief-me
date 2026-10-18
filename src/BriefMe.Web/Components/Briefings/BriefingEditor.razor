@@ -4,221 +4,121 @@
 @using BriefMe.Domain.Common
 @using BriefMe.Domain.Enums
 @using BriefMe.Web.Contracts.Briefings
-@using BriefMe.Infrastructure.Storage
-@using Microsoft.Extensions.Options
 @using System.ComponentModel.DataAnnotations
 @inject IBriefingsApiClient BriefingsApi
 @inject AuthSessionStore SessionStore
 @inject NavigationManager NavigationManager
-@inject IOptions<FileStorageSettings> FileStorageOptions
 
-<div class="min-h-full bg-[#090909] px-4 py-8 text-white sm:px-8">
-    <div class="mx-auto max-w-[560px]">
-        <div class="flex items-center justify-between gap-4">
-            <div>
-                <h1 class="text-[32px] font-medium leading-[1.13] tracking-[-1px] text-white">@Title</h1>
-                <p class="mt-1 text-[15px] leading-[1.3] tracking-[-0.15px] text-[#999999]">@Subtitle</p>
-            </div>
-        </div>
+<PageContainer>
+    <PageHeader Title="@Title" Description="@Subtitle" />
 
-        <div class="mt-[30px]">
-            @if (_isLoading)
-            {
-                <div class="flex items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] py-24 text-[15px] text-[#999999]">
-                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-[#262626] border-t-white"></span>
-                    <span>Carregando...</span>
-                </div>
-            }
-            else if (_loadState is not null)
-            {
-                <div class="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-[#262626] bg-[#141414] px-6 py-24 text-center">
-                    <p class="text-[15px] text-white">@_loadState</p>
-                    <button type="button" @onclick="NavigateAway"
-                            class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626]">
-                        Voltar
-                    </button>
-                </div>
-            }
-            else
-            {
+    <div class="mt-8">
+        @if (_isLoading)
+        {
+            <Card>
+                <LoadingState />
+            </Card>
+        }
+        else if (_loadState is not null)
+        {
+            <Card>
+                <EmptyState Title="@_loadState" Icon="IconName.FileText">
+                    <Button Variant="ButtonVariant.Secondary" Icon="IconName.ArrowLeft" OnClick="NavigateAway">Voltar</Button>
+                </EmptyState>
+            </Card>
+        }
+        else
+        {
+            <Card>
                 <EditForm EditContext="_editContext" FormName="briefingEditor" OnValidSubmit="HandleValidSubmitAsync"
-                          class="flex flex-col gap-[15px] rounded-[20px] border border-[#262626] bg-[#141414] p-[30px]">
+                          class="grid gap-x-6 gap-y-5 p-6 sm:p-8 md:grid-cols-2">
                     <DataAnnotationsValidator />
 
                     @if (_generalError is not null)
                     {
-                        <div role="alert" class="rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
-                            @_generalError
-                        </div>
+                        <Alert Class="md:col-span-2">@_generalError</Alert>
                     }
 
-                    <div class="flex flex-col gap-1">
-                        <label for="title" class="text-[13px] font-medium text-[#999999]">Título</label>
-                        <InputText id="title" @bind-Value="_model.Title" disabled="@_isSubmitting"
-                                   class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50" />
-                        <ValidationMessage For="() => _model.Title" class="text-[13px] text-[#ef4444]" />
-                    </div>
+                    <FormField Label="Título" For="title" Class="md:col-span-2">
+                        <FormInput id="title" @bind-Value="_model.Title" disabled="@_isSubmitting" />
+                        <FormMessage For="() => _model.Title" />
+                    </FormField>
 
-                    <div class="flex flex-col gap-1">
-                        <label for="category" class="text-[13px] font-medium text-[#999999]">Categoria</label>
-                        @if (IsEdit)
-                        {
-                            <div id="category" class="rounded-[10px] border border-[#262626] bg-[#1c1c1c]/60 px-[14px] py-[10px] text-[15px] text-[#999999]">
-                                @(_currentCategoryName ?? "—")
-                            </div>
-                            <p class="text-[12px] text-[#999999]">A categoria é definida na criação e não pode ser alterada.</p>
-                        }
-                        else if (_categoriesUnavailable)
-                        {
-                            <div id="category" class="rounded-[10px] border border-[#ef4444]/30 bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-[#999999]">
-                                Nenhuma categoria ativa disponível.
-                            </div>
-                            <p class="text-[12px] text-[#ef4444]">Não é possível criar um briefing sem uma categoria. Solicite a configuração de categorias.</p>
-                        }
-                        else
-                        {
-                            <InputSelect id="category" TValue="Guid?" @bind-Value="_model.CategoryId" disabled="@_isSubmitting"
-                                         class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50">
+                    @if (IsEdit)
+                    {
+                        <FormField Label="Categoria" For="category" Description="A categoria é definida na criação e não pode ser alterada.">
+                            <Input id="category" Value="@(_currentCategoryName ?? "—")" disabled />
+                        </FormField>
+                    }
+                    else if (_categoriesUnavailable)
+                    {
+                        <FormField Label="Categoria" For="category">
+                            <Input id="category" Value="Nenhuma categoria ativa disponível." aria-invalid="true" disabled />
+                            <p class="text-caption text-error-ink">Não é possível criar um briefing sem uma categoria. Solicite a configuração de categorias.</p>
+                        </FormField>
+                    }
+                    else
+                    {
+                        <FormField Label="Categoria" For="category">
+                            <FormSelect id="category" TValue="Guid?" @bind-Value="_model.CategoryId" disabled="@_isSubmitting">
                                 <option value="">Selecione uma categoria</option>
                                 @foreach (var category in _categories)
                                 {
                                     <option value="@category.Id">@category.Name</option>
                                 }
-                            </InputSelect>
-                            <ValidationMessage For="() => _model.CategoryId" class="text-[13px] text-[#ef4444]" />
-                        }
-                    </div>
+                            </FormSelect>
+                            <FormMessage For="() => _model.CategoryId" />
+                        </FormField>
+                    }
 
-                    <div class="flex flex-col gap-1">
-                        <label for="priority" class="text-[13px] font-medium text-[#999999]">Prioridade</label>
-                        <InputSelect id="priority" TValue="Priority" @bind-Value="_model.Priority" disabled="@_isSubmitting"
-                                     class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50">
+                    <FormField Label="Prioridade" For="priority">
+                        <FormSelect id="priority" TValue="Priority" @bind-Value="_model.Priority" disabled="@_isSubmitting">
                             @foreach (var priority in PriorityOptions)
                             {
                                 <option value="@priority.Value">@priority.Label</option>
                             }
-                        </InputSelect>
-                        <ValidationMessage For="() => _model.Priority" class="text-[13px] text-[#ef4444]" />
-                    </div>
+                        </FormSelect>
+                        <FormMessage For="() => _model.Priority" />
+                    </FormField>
 
-                    <div class="flex flex-col gap-1">
-                        <label for="objective" class="text-[13px] font-medium text-[#999999]">Objetivo</label>
-                        <InputTextArea id="objective" @bind-Value="_model.Objective" rows="3" disabled="@_isSubmitting"
-                                       class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50" />
-                    </div>
+                    <FormField Label="Objetivo" For="objective" Class="md:col-span-2">
+                        <FormTextarea id="objective" @bind-Value="_model.Objective" rows="3" disabled="@_isSubmitting" />
+                    </FormField>
 
-                    <div class="flex flex-col gap-1">
-                        <label for="description" class="text-[13px] font-medium text-[#999999]">Descrição</label>
-                        <InputTextArea id="description" @bind-Value="_model.Description" rows="4" disabled="@_isSubmitting"
-                                       class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50" />
-                    </div>
+                    <FormField Label="Descrição" For="description" Class="md:col-span-2">
+                        <FormTextarea id="description" @bind-Value="_model.Description" rows="4" disabled="@_isSubmitting" />
+                    </FormField>
 
-                    <div class="flex flex-col gap-1">
-                        <label for="requestingArea" class="text-[13px] font-medium text-[#999999]">Área solicitante</label>
-                        <InputText id="requestingArea" @bind-Value="_model.RequestingArea" disabled="@_isSubmitting"
-                                   class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white placeholder:text-[#999999] focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50" />
-                    </div>
+                    <FormField Label="Área solicitante" For="requestingArea">
+                        <FormInput id="requestingArea" @bind-Value="_model.RequestingArea" disabled="@_isSubmitting" />
+                    </FormField>
 
-                    <div class="flex flex-col gap-1">
-                        <label for="deliveryDate" class="text-[13px] font-medium text-[#999999]">Data desejada de entrega</label>
-                        <InputDate id="deliveryDate" TValue="DateOnly?" @bind-Value="_model.DesiredDeliveryDate" disabled="@_isSubmitting"
-                                   class="rounded-[10px] border border-[#262626] bg-[#1c1c1c] px-[14px] py-[10px] text-[15px] text-white focus:border-transparent focus:shadow-[0_0_0_1px_rgba(0,153,255,0.15)] focus:outline-none disabled:opacity-50" />
-                    </div>
+                    <FormField Label="Data desejada de entrega" For="deliveryDate">
+                        <FormDateInput id="deliveryDate" TValue="DateOnly?" @bind-Value="_model.DesiredDeliveryDate" disabled="@_isSubmitting" />
+                    </FormField>
 
-                    @* RF005 "Anexos": optional reference material. In edit mode a pick uploads straight away
-                       (the briefing has an id); in create mode it is queued and flushed after the save. *@
-                    <div class="mt-2 flex flex-col gap-[10px] border-t border-[#262626] pt-[20px]">
-                        <div class="flex flex-wrap items-baseline justify-between gap-2">
-                            <label for="attachment" class="text-[13px] font-medium text-[#999999]">Anexos</label>
-                            <span class="text-[12px] text-[#999999]">Opcional</span>
-                        </div>
+                    <FormField Label="Anexos" For="attachments" Class="md:col-span-2">
+                        <AttachmentPicker @ref="_attachmentPicker" Existing="_existingAttachments" BriefingId="BriefingId" Disabled="_isSubmitting" />
+                    </FormField>
 
-                        @if (AttachmentCount == 0)
-                        {
-                            <p class="text-[14px] text-[#999999]">Nenhum arquivo anexado.</p>
-                        }
-                        else
-                        {
-                            <ul class="flex flex-col rounded-[10px] border border-[#262626] bg-[#1c1c1c]">
-                                @foreach (var attachment in _attachments)
-                                {
-                                    <li class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#262626] px-[14px] py-[10px] last:border-b-0">
-                                        <div>
-                                            <p class="text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@attachment.FileName</p>
-                                            <p class="mt-1 text-[13px] font-medium tracking-[-0.13px] text-[#999999]">
-                                                @FormatSize(attachment.SizeBytes) • @attachment.UploadedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
-                                            </p>
-                                        </div>
-                                        @if (CanAttach)
-                                        {
-                                            <button type="button" @onclick="() => RemoveAttachmentAsync(attachment.Id)" disabled="@_isUploading"
-                                                    class="text-[13px] font-medium text-[#999999] transition hover:text-[#ef4444] disabled:opacity-50">
-                                                Remover
-                                            </button>
-                                        }
-                                    </li>
-                                }
-
-                                @* Create mode only: picked but not yet uploaded — the briefing has no id yet. *@
-                                @foreach (var queued in _queuedFiles)
-                                {
-                                    <li class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#262626] px-[14px] py-[10px] last:border-b-0">
-                                        <div>
-                                            <p class="text-[15px] leading-[1.3] tracking-[-0.15px] text-white">@queued.FileName</p>
-                                            <p class="mt-1 text-[13px] font-medium tracking-[-0.13px] text-[#999999]">
-                                                @FormatSize(queued.Content.LongLength) • Será enviado ao salvar
-                                            </p>
-                                        </div>
-                                        <button type="button" @onclick="() => _queuedFiles.Remove(queued)" disabled="@_isSubmitting"
-                                                class="text-[13px] font-medium text-[#999999] transition hover:text-[#ef4444] disabled:opacity-50">
-                                            Remover
-                                        </button>
-                                    </li>
-                                }
-                            </ul>
-                        }
-
-                        @if (CanAttach)
-                        {
-                            <InputFile id="attachment" OnChange="OnFileSelectedAsync" disabled="@(_isSubmitting || _isUploading)"
-                                       class="text-[14px] text-[#999999] file:mr-3 file:cursor-pointer file:rounded-[100px] file:border-0 file:bg-[#1c1c1c] file:px-[15px] file:py-[10px] file:text-[14px] file:font-medium file:text-white hover:file:bg-[#262626]" />
-                        }
-
-                        @if (_attachmentError is not null)
-                        {
-                            <div role="alert" class="rounded-[10px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-[14px] py-[10px] text-[14px] text-[#ef4444]">
-                                @_attachmentError
-                            </div>
-                        }
-                    </div>
-
-                    <div class="mt-2 flex flex-wrap items-center justify-end gap-2">
-                        <button type="button" @onclick="NavigateAway" disabled="@_isSubmitting"
-                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:opacity-50">
-                            Cancelar
-                        </button>
-                        <button type="submit" @onclick="() => _pendingAction = SubmitAction.SaveDraft" disabled="@(_isSubmitting || _categoriesUnavailable)"
-                                class="rounded-[100px] bg-[#1c1c1c] px-[15px] py-[10px] text-[14px] font-medium text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-60">
+                    <div class="mt-2 flex flex-wrap items-center justify-end gap-2 md:col-span-2">
+                        <Button Variant="ButtonVariant.Secondary" Icon="IconName.X" OnClick="NavigateAway" Disabled="_isSubmitting">Cancelar</Button>
+                        <Button Type="submit" Variant="ButtonVariant.Outline" Icon="IconName.Save" OnClick="() => _pendingAction = SubmitAction.SaveDraft"
+                                Disabled="@(_isSubmitting || _categoriesUnavailable)"
+                                Loading="@(_isSubmitting && _pendingAction == SubmitAction.SaveDraft)">
                             @(_isSubmitting && _pendingAction == SubmitAction.SaveDraft ? "Salvando..." : "Salvar rascunho")
-                        </button>
-                        <button type="submit" @onclick="() => _pendingAction = SubmitAction.SubmitForApproval" disabled="@(_isSubmitting || _categoriesUnavailable)"
-                                class="inline-flex items-center gap-2 rounded-[100px] bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
-                            @if (_isSubmitting && _pendingAction == SubmitAction.SubmitForApproval)
-                            {
-                                <span class="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black"></span>
-                                <span>Enviando...</span>
-                            }
-                            else
-                            {
-                                <span>Enviar para aprovação</span>
-                            }
-                        </button>
+                        </Button>
+                        <Button Type="submit" Icon="IconName.Send" OnClick="() => _pendingAction = SubmitAction.Submit"
+                                Disabled="@(_isSubmitting || _categoriesUnavailable)"
+                                Loading="@(_isSubmitting && _pendingAction == SubmitAction.Submit)">
+                            @(_isSubmitting && _pendingAction == SubmitAction.Submit ? "Enviando..." : "Enviar para o design")
+                        </Button>
                     </div>
                 </EditForm>
-            }
-        </div>
+            </Card>
+        }
     </div>
-</div>
+</PageContainer>
 
 @code {
     /// <summary>Null in create mode; the target briefing's id in edit mode.</summary>
@@ -241,7 +141,7 @@
         nameof(BriefingFormModel.Priority),
     ];
 
-    private enum SubmitAction { SaveDraft, SubmitForApproval }
+    private enum SubmitAction { SaveDraft, Submit }
 
     private bool IsEdit => BriefingId.HasValue;
     private string Title => IsEdit ? "Editar briefing" : "Novo briefing";
@@ -255,19 +155,9 @@
     private SubmitAction _pendingAction = SubmitAction.SaveDraft;
 
     private IReadOnlyList<CategoryListItemDto> _categories = [];
+    private IReadOnlyList<BriefingAttachmentDto> _existingAttachments = [];
+    private AttachmentPicker? _attachmentPicker;
     private string? _currentCategoryName;
-
-    /// <summary>Files already on the briefing (edit mode). Empty while creating — there is no id to hang them off.</summary>
-    private List<AttachmentDto> _attachments = [];
-
-    /// <summary>Create mode: picked bytes waiting for the briefing to exist, flushed by <see cref="UploadQueuedFilesAsync"/>.</summary>
-    private readonly List<QueuedFile> _queuedFiles = [];
-
-    private bool _isUploading;
-    private string? _attachmentError;
-
-    /// <summary>Status of the loaded briefing; null while creating, where everything is still a draft.</summary>
-    private BriefingStatus? _status;
 
     private BriefingFormModel _model = new();
     private EditContext _editContext = default!;
@@ -307,8 +197,7 @@
             _model.RequestingArea = briefing.RequestingArea;
             _model.DesiredDeliveryDate = briefing.DesiredDeliveryDate;
             _currentCategoryName = _categories.FirstOrDefault(c => c.Id == briefing.CategoryId)?.Name;
-            _attachments = [.. briefing.Attachments];
-            _status = briefing.Status;
+            _existingAttachments = briefing.Attachments;
         }
         else
         {
@@ -329,134 +218,14 @@
         _editContext.OnFieldChanged += (_, args) => _messageStore.Clear(args.FieldIdentifier);
     }
 
-    /// <summary>
-    /// Statuses in which the API accepts attaching and removing files — the same set
-    /// <c>Briefing.AddAttachment()</c> guards. Past them the picker is hidden and the list renders read-only,
-    /// so the screen never offers an action the server would answer with a 409.
-    /// </summary>
-    private bool CanAttach => _status is null or BriefingStatus.Draft
-        or BriefingStatus.AwaitingApproval
-        or BriefingStatus.ChangesRequested;
-
-    private int AttachmentCount => _attachments.Count + _queuedFiles.Count;
-
-    private long MaxUploadSizeBytes => FileStorageOptions.Value.MaxSizeBytes;
-
-    /// <summary>
-    /// Buffers the picked file so the request body can be rebuilt if the token refresh replays it
-    /// (<c>AuthenticatedApiClient.PostAsync</c>). The cap is the same <c>FileStorage:MaxSizeBytes</c> the
-    /// server validates against (BRF-011), so an oversized file is refused here with the same limit rather
-    /// than after a full upload. Same handling as <c>TaskDetailView</c>.
-    /// </summary>
-    private async Task OnFileSelectedAsync(InputFileChangeEventArgs args)
-    {
-        _attachmentError = null;
-
-        var file = args.File;
-        if (file is null)
-            return;
-
-        byte[] content;
-        try
-        {
-            using var buffer = new MemoryStream();
-            await using var stream = file.OpenReadStream(MaxUploadSizeBytes);
-            await stream.CopyToAsync(buffer);
-            content = buffer.ToArray();
-        }
-        catch (IOException)
-        {
-            // Thrown by OpenReadStream when the file is larger than the allowed size.
-            _attachmentError = $"O arquivo excede o tamanho máximo de {FormatSize(MaxUploadSizeBytes)}.";
-            return;
-        }
-
-        // Creating: no briefing id exists yet, so the file waits for the save. Editing: it goes now.
-        if (!IsEdit)
-        {
-            _queuedFiles.Add(new QueuedFile(file.Name, content));
-            return;
-        }
-
-        _isUploading = true;
-        var upload = await BriefingsApi.UploadAttachmentAsync(BriefingId!.Value, file.Name, content);
-        _isUploading = false;
-
-        if (upload.IsFailure)
-        {
-            _attachmentError = FirstMessage(upload);
-            return;
-        }
-
-        // Newest first, matching the order the API returns the list in.
-        _attachments.Insert(0, upload.Value);
-    }
-
-    private async Task RemoveAttachmentAsync(Guid attachmentId)
-    {
-        _attachmentError = null;
-        _isUploading = true;
-
-        var removal = await BriefingsApi.RemoveAttachmentAsync(BriefingId!.Value, attachmentId);
-
-        _isUploading = false;
-
-        if (removal.IsFailure)
-        {
-            _attachmentError = FirstMessage(removal);
-            return;
-        }
-
-        // The endpoint answers with what remains, so the list is replaced rather than patched locally.
-        _attachments = [.. removal.Value.Attachments];
-    }
-
-    /// <summary>
-    /// Flushes the create-mode queue against the briefing that now exists. Sequential and fail-fast: one
-    /// multipart request per file, so an oversized one does not discard the others, and the first failure
-    /// stops the loop with the files uploaded so far kept. Returns false when the caller must keep the form
-    /// open.
-    /// </summary>
-    private async Task<bool> UploadQueuedFilesAsync(Guid briefingId)
-    {
-        while (_queuedFiles.Count > 0)
-        {
-            var queued = _queuedFiles[0];
-
-            var upload = await BriefingsApi.UploadAttachmentAsync(briefingId, queued.FileName, queued.Content);
-            if (upload.IsFailure)
-            {
-                _attachmentError = $"{queued.FileName}: {FirstMessage(upload)}";
-                return false;
-            }
-
-            _queuedFiles.RemoveAt(0);
-            _attachments.Insert(0, upload.Value);
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// The message to show for a failed call: a field-keyed validation error when the API sent one
-    /// (400 from a validator), otherwise the general failure detail.
-    /// </summary>
-    private static string? FirstMessage(Result result) =>
-        result.Errors.Count > 0 ? result.Errors[0].ErrorMessage : result.Error;
-
-    private static string FormatSize(long sizeBytes) => sizeBytes switch
-    {
-        >= 1024 * 1024 => $"{sizeBytes / (1024d * 1024d):0.#} MB",
-        >= 1024 => $"{sizeBytes / 1024d:0.#} KB",
-        _ => $"{sizeBytes} B"
-    };
-
     private async Task HandleValidSubmitAsync()
     {
         _generalError = null;
-        _attachmentError = null;
         _messageStore.Clear();
         _isSubmitting = true;
+
+        var newAttachments = _attachmentPicker?.Queued ?? [];
+        var removedAttachmentIds = _attachmentPicker?.RemovedIds ?? [];
 
         var save = IsEdit
             ? await BriefingsApi.UpdateBriefingAsync(BriefingId!.Value, new UpdateBriefingRequest(
@@ -465,7 +234,7 @@
                 _model.Description,
                 _model.Objective,
                 _model.RequestingArea,
-                _model.DesiredDeliveryDate))
+                _model.DesiredDeliveryDate), newAttachments, removedAttachmentIds)
             : await BriefingsApi.CreateBriefingAsync(new CreateBriefingRequest(
                 _model.Title,
                 _model.Priority,
@@ -473,7 +242,7 @@
                 _model.Description,
                 _model.Objective,
                 _model.RequestingArea,
-                _model.DesiredDeliveryDate));
+                _model.DesiredDeliveryDate), newAttachments);
 
         if (save.IsFailure)
         {
@@ -482,20 +251,16 @@
             return;
         }
 
-        // Before the submit call on purpose: the manager should review the briefing with its material
-        // attached. A failure here leaves a saved draft — attachments are optional, so nothing is invalid.
-        if (!await UploadQueuedFilesAsync(save.Value.Id))
-        {
-            _isSubmitting = false;
-            return;
-        }
-
-        if (_pendingAction == SubmitAction.SubmitForApproval)
+        if (_pendingAction == SubmitAction.Submit)
         {
             var submit = await BriefingsApi.SubmitBriefingAsync(save.Value.Id);
             if (submit.IsFailure)
             {
-                // The draft was persisted; only the approval transition failed. Surface it and keep the form.
+                // The save already applied the attachment changes; a retry must not upload or remove them again.
+                if (IsEdit)
+                    await RefreshAttachmentsAsync();
+
+                // The draft was persisted; only the submit transition failed. Surface it and keep the form.
                 ApplyFailure(submit);
                 _isSubmitting = false;
                 return;
@@ -503,6 +268,15 @@
         }
 
         NavigateAway();
+    }
+
+    private async Task RefreshAttachmentsAsync()
+    {
+        _attachmentPicker?.Clear();
+
+        var reloaded = await BriefingsApi.GetBriefingAsync(BriefingId!.Value);
+        if (reloaded.IsSuccess)
+            _existingAttachments = reloaded.Value.Attachments;
     }
 
     private void ApplyFailure(Result result)
@@ -530,10 +304,6 @@
 
     // Back/after-save target: the requester's list (BRF-014), where the saved briefing is now visible.
     private void NavigateAway() => NavigationManager.NavigateTo("/briefings/meus");
-
-    /// <summary>A file picked before the briefing exists. Bytes, not a stream: the upload may be replayed
-    /// after a token refresh, so the body has to be reproducible.</summary>
-    private sealed record QueuedFile(string FileName, byte[] Content);
 
     private sealed class BriefingFormModel : IValidatableObject
     {

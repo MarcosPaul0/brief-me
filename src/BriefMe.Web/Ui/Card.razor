@@ -1,0 +1,33 @@
+@*
+    Content surface. Flat — DESIGN-clay.md uses no shadows; depth comes from colour. Default is the
+    product-mockup-card (canvas, hairline rule, 16px corner); the other tones are the saturated feature-card-*
+    fills (24px corner, no rule). Padding is the caller's: pass it in Class.
+*@
+<div class="@ClassNames.Join(ToneClasses, Class)" @attributes="AdditionalAttributes">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public CardTone Tone { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string ToneClasses => Tone switch
+    {
+        CardTone.Cream => "rounded-xl bg-surface-card text-ink",
+        CardTone.Pink => "rounded-xl bg-brand-pink text-on-primary",
+        CardTone.Teal => "rounded-xl bg-brand-teal text-on-dark",
+        CardTone.Lavender => "rounded-xl bg-brand-lavender text-ink",
+        CardTone.Peach => "rounded-xl bg-brand-peach text-ink",
+        CardTone.Ochre => "rounded-xl bg-brand-ochre text-ink",
+        _ => "rounded-lg border border-hairline bg-canvas"
+    };
+}

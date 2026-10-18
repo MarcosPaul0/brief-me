@@ -1,6 +1,7 @@
 using BriefMe.Application.Abstractions;
 using BriefMe.Application.UseCases.Users.ChangePassword;
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
 using BriefMe.Domain.ValueObjects;
 using FluentAssertions;
@@ -26,7 +27,7 @@ public class ChangePasswordCommandHandlerTests
     }
 
     private static User CreateExistingUser(string passwordHash = "old-hash") =>
-        User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, passwordHash);
+        User.Create("Ana Silva", Email.Create("ana@briefme.com").Value, passwordHash, UserRole.Requester);
 
     [Fact]
     public async Task Handle_WhenCurrentPasswordIsCorrectAndNewPasswordIsValid_UpdatesHashAndRevokesSessions()

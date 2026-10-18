@@ -1,9 +1,12 @@
 using BriefMe.Application.Abstractions;
+using BriefMe.Application.Common.Briefings;
+using BriefMe.Application.Common.Errors;
 using BriefMe.Application.UseCases.Briefings.GetBriefingById;
 using BriefMe.Domain.Common;
 using BriefMe.Domain.Entities;
 using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
+using BriefMe.Domain.ValueObjects;
 using FluentAssertions;
 using Moq;
 
@@ -12,7 +15,10 @@ namespace BriefMe.Application.Tests.UseCases.Briefings.GetBriefingById;
 public class GetBriefingByIdQueryHandlerTests
 {
     private readonly Mock<IBriefingRepository> _briefingRepositoryMock = new();
+    private readonly Mock<ICategoryRepository> _categoryRepositoryMock = new();
+    private readonly Mock<IUserRepository> _userRepositoryMock = new();
     private readonly Mock<ICurrentUser> _currentUserMock = new();
+    private readonly Mock<IAttachmentLinkSigner> _signerMock = new();
     private readonly Guid _requesterId = Guid.NewGuid();
     private readonly GetBriefingByIdQueryHandler _handler;
 
@@ -20,99 +26,120 @@ public class GetBriefingByIdQueryHandlerTests
     {
         _handler = new GetBriefingByIdQueryHandler(
             _briefingRepositoryMock.Object,
-            _currentUserMock.Object);
+            new BriefingComplementsLoader(_categoryRepositoryMock.Object, _userRepositoryMock.Object),
+            _currentUserMock.Object,
+            _signerMock.Object);
 
-        _currentUserMock.Setup(u => u.UserId).Returns(_requesterId.ToString());
+        _categoryRepositoryMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync([]);
+        _userRepositoryMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync([]);
     }
 
-    private Briefing NewDraft() =>
-        Briefing.Create("Original title", Priority.Low, Guid.NewGuid(), _requesterId);
+    private Briefing SubmittedBriefing()
+    {
+        var briefing = Briefing.Create("Banner", Priority.Medium, Guid.NewGuid(), _requesterId,
+            "description", "objective", "Marketing", DateOnly.FromDateTime(DateTime.UtcNow).AddDays(5));
+        briefing.Submit();
+        _briefingRepositoryMock.Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default)).ReturnsAsync(briefing);
+        return briefing;
+    }
+
+    private void ActAs(Guid userId, UserRole role)
+    {
+        _currentUserMock.Setup(u => u.UserId).Returns(userId.ToString());
+        _currentUserMock.Setup(u => u.Role).Returns(role);
+    }
 
     [Fact]
-    public async Task Handle_WhenOwnedByRequester_ReturnsBriefingDetailDto()
+    public async Task Handle_WhenCallerOwnsTheBriefing_ReturnsDetail()
     {
         // Arrange
-        var briefing = NewDraft();
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default))
-            .ReturnsAsync(briefing);
+        var briefing = SubmittedBriefing();
+        ActAs(_requesterId, UserRole.Requester);
+
+        // Act
+        var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
+
+        // Assert
+        result.Value.Id.Should().Be(briefing.Id);
+    }
+
+    [Fact]
+    public async Task Handle_WhenAnotherRequesterOpensAQueuedBriefing_ReturnsForbidden()
+    {
+        // Arrange
+        var briefing = SubmittedBriefing();
+        ActAs(Guid.NewGuid(), UserRole.Requester);
+
+        // Act
+        var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
+
+        // Assert
+        result.Type.Should().Be(ErrorType.Forbidden);
+        result.Error.Should().Be(BriefingErrors.NotVisible);
+    }
+
+    [Fact]
+    public async Task Handle_WhenAnyDesignerOpensAQueuedBriefing_ReturnsDetail()
+    {
+        // Arrange
+        var briefing = SubmittedBriefing();
+        ActAs(Guid.NewGuid(), UserRole.Designer);
 
         // Act
         var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Id.Should().Be(briefing.Id);
-        result.Value.RequesterId.Should().Be(_requesterId);
-        result.Value.Status.Should().Be(BriefingStatus.Draft);
     }
 
     [Fact]
-    public async Task Handle_WhenBriefingHasAttachments_ReturnsThemInTheDto()
+    public async Task Handle_WhenAssignedDesignerOpensIt_ReturnsDetail()
     {
         // Arrange
-        var briefing = NewDraft();
-        var attachment = briefing.AddAttachment("referencia.pdf", "2026/07/31/a.pdf", 2048, _requesterId);
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default))
-            .ReturnsAsync(briefing);
+        var designerId = Guid.NewGuid();
+        var briefing = SubmittedBriefing();
+        briefing.Claim(designerId);
+        ActAs(designerId, UserRole.Designer);
 
         // Act
         var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
 
         // Assert
-        result.Value.Attachments.Should().ContainSingle()
-            .Which.Id.Should().Be(attachment.Id);
+        result.IsSuccess.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Handle_WhenBriefingHasNoAttachments_ReturnsEmptyList()
+    public async Task Handle_WhenAnotherDesignerOpensAClaimedBriefing_ReturnsForbidden()
     {
         // Arrange
-        var briefing = NewDraft();
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default))
-            .ReturnsAsync(briefing);
+        var briefing = SubmittedBriefing();
+        briefing.Claim(Guid.NewGuid());
+        ActAs(Guid.NewGuid(), UserRole.Designer);
 
         // Act
         var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
 
         // Assert
-        result.Value.Attachments.Should().BeEmpty();
+        result.Type.Should().Be(ErrorType.Forbidden);
     }
 
     [Fact]
     public async Task Handle_WhenBriefingNotFound_ReturnsNotFound()
     {
         // Arrange
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(It.IsAny<Guid>(), default))
-            .ReturnsAsync((Briefing?)null);
+        var id = Guid.NewGuid();
+        ActAs(_requesterId, UserRole.Requester);
+        _briefingRepositoryMock.Setup(r => r.GetByIdWithAttachmentsAsync(id, default)).ReturnsAsync((Briefing?)null);
 
         // Act
-        var result = await _handler.Handle(new GetBriefingByIdQuery(Guid.NewGuid()), default);
+        var result = await _handler.Handle(new GetBriefingByIdQuery(id), default);
 
         // Assert
-        result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ErrorType.NotFound);
-    }
-
-    [Fact]
-    public async Task Handle_WhenNotTheOwner_ReturnsForbidden()
-    {
-        // Arrange
-        var briefing = NewDraft();
-        _briefingRepositoryMock
-            .Setup(r => r.GetByIdWithAttachmentsAsync(briefing.Id, default))
-            .ReturnsAsync(briefing);
-        _currentUserMock.Setup(u => u.UserId).Returns(Guid.NewGuid().ToString());
-
-        // Act
-        var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
-
-        // Assert
-        result.IsFailure.Should().BeTrue();
-        result.Type.Should().Be(ErrorType.Forbidden);
     }
 
     [Fact]
@@ -125,8 +152,57 @@ public class GetBriefingByIdQueryHandlerTests
         var result = await _handler.Handle(new GetBriefingByIdQuery(Guid.NewGuid()), default);
 
         // Assert
-        result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ErrorType.Unauthorized);
         _briefingRepositoryMock.Verify(r => r.GetByIdWithAttachmentsAsync(It.IsAny<Guid>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenBriefingHasAttachments_ReturnsThemInUploadOrderWithTheirTokens()
+    {
+        // Arrange
+        var briefing = SubmittedBriefing();
+        var first = briefing.AddAttachment("first.pdf", "briefings/first.pdf", AttachmentFormat.Pdf, 100);
+        var second = briefing.AddAttachment("second.mp4", "briefings/second.mp4", AttachmentFormat.Mp4, 200);
+        typeof(BriefingAttachment).GetProperty(nameof(BriefingAttachment.UploadedAt))!.SetValue(first, DateTime.UtcNow.AddMinutes(1));
+        _signerMock.Setup(s => s.Issue(briefing.Id, first.Id)).Returns("token-first");
+        _signerMock.Setup(s => s.Issue(briefing.Id, second.Id)).Returns("token-second");
+        ActAs(_requesterId, UserRole.Requester);
+
+        // Act
+        var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
+
+        // Assert
+        result.Value.Attachments.Select(a => (a.FileName, a.Kind, a.ContentToken)).Should().Equal(
+            ("second.mp4", AttachmentKind.Video, "token-second"),
+            ("first.pdf", AttachmentKind.Pdf, "token-first"));
+    }
+
+    [Fact]
+    public async Task Handle_WhenBriefingHasNoAttachments_ReturnsEmptyList()
+    {
+        // Arrange
+        var briefing = SubmittedBriefing();
+        ActAs(_requesterId, UserRole.Requester);
+
+        // Act
+        var result = await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
+
+        // Assert
+        result.Value.Attachments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenCallerCannotSeeTheBriefing_IssuesNoToken()
+    {
+        // Arrange
+        var briefing = SubmittedBriefing();
+        briefing.AddAttachment("secret.pdf", "briefings/secret.pdf", AttachmentFormat.Pdf, 100);
+        ActAs(Guid.NewGuid(), UserRole.Requester);
+
+        // Act
+        await _handler.Handle(new GetBriefingByIdQuery(briefing.Id), default);
+
+        // Assert
+        _signerMock.Verify(s => s.Issue(It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 }

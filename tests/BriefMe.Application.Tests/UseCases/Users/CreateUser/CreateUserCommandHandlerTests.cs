@@ -1,6 +1,7 @@
 using BriefMe.Application.Abstractions;
 using BriefMe.Application.UseCases.Users.CreateUser;
 using BriefMe.Domain.Entities;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.Repositories;
 using BriefMe.Domain.ValueObjects;
 using FluentAssertions;
@@ -11,7 +12,6 @@ namespace BriefMe.Application.Tests.UseCases.Users.CreateUser;
 public class CreateUserCommandHandlerTests
 {
     private readonly Mock<IUserRepository> _userRepositoryMock = new();
-    private readonly Mock<IRoleRepository> _roleRepositoryMock = new();
     private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly CreateUserCommandHandler _handler;
@@ -20,7 +20,6 @@ public class CreateUserCommandHandlerTests
     {
         _handler = new CreateUserCommandHandler(
             _userRepositoryMock.Object,
-            _roleRepositoryMock.Object,
             _passwordHasherMock.Object,
             _unitOfWorkMock.Object);
 
@@ -30,57 +29,53 @@ public class CreateUserCommandHandlerTests
         _passwordHasherMock.Setup(h => h.Hash(It.IsAny<string>())).Returns("hashed-password");
     }
 
-    [Fact]
-    public async Task Handle_WhenDataIsValidAndRolesExist_CreatesActiveUserWithAssignedRoles()
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Designer)]
+    [InlineData(UserRole.Requester)]
+    public async Task Handle_WhenDataIsValid_ReturnsUserWithTheGivenRole(UserRole role)
     {
         // Arrange
-        var role = Role.Create("Designer", null);
-        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", [role.Id]);
-
-        _roleRepositoryMock.Setup(r => r.GetByIdsAsync(It.Is<IEnumerable<Guid>>(ids => ids.Contains(role.Id)), default))
-            .ReturnsAsync([role]);
+        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", role);
 
         // Act
         var result = await _handler.Handle(command, default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.FullName.Should().Be("Ana Silva");
-        result.Value.Email.Should().Be("ana@briefme.com");
-        result.Value.Roles.Should().ContainSingle().Which.Should().Be("Designer");
-        _userRepositoryMock.Verify(r => r.AddAsync(It.IsAny<User>(), default), Times.Once);
-        _unitOfWorkMock.Verify(u => u.CommitAsync(default), Times.Once);
+        result.Value.Role.Should().Be(role);
     }
 
     [Fact]
-    public async Task Handle_WhenRoleIdsIsEmpty_CreatesUserWithoutRoles()
+    public async Task Handle_WhenDataIsValid_PersistsActiveUser()
     {
         // Arrange
-        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", []);
+        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", UserRole.Designer);
 
         // Act
-        var result = await _handler.Handle(command, default);
+        await _handler.Handle(command, default);
 
         // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Roles.Should().BeEmpty();
-        _roleRepositoryMock.Verify(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), default), Times.Never);
+        _userRepositoryMock.Verify(r => r.AddAsync(
+            It.Is<User>(u => u.Status == UserStatus.Active && u.Role == UserRole.Designer), default), Times.Once);
+        _unitOfWorkMock.Verify(u => u.CommitAsync(default), Times.Once);
     }
 
     [Fact]
     public async Task Handle_WhenEmailAlreadyExists_ReturnsFailureWithoutPersisting()
     {
         // Arrange
-        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", []);
+        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", UserRole.Requester);
 
-        _userRepositoryMock.Setup(r => r.EmailExistsAsync(It.IsAny<Email>(), null, default)).ReturnsAsync(true);
+        _userRepositoryMock
+            .Setup(r => r.EmailExistsAsync(It.IsAny<Email>(), null, default))
+            .ReturnsAsync(true);
 
         // Act
         var result = await _handler.Handle(command, default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        _userRepositoryMock.Verify(r => r.AddAsync(It.IsAny<User>(), default), Times.Never);
         _unitOfWorkMock.Verify(u => u.CommitAsync(default), Times.Never);
     }
 
@@ -88,48 +83,27 @@ public class CreateUserCommandHandlerTests
     public async Task Handle_WhenPasswordDoesNotMeetPolicy_ReturnsFailureWithoutCheckingUniqueness()
     {
         // Arrange
-        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "weak", []);
+        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "fraca", UserRole.Requester);
 
         // Act
         var result = await _handler.Handle(command, default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        _userRepositoryMock.Verify(r => r.EmailExistsAsync(It.IsAny<Email>(), null, default), Times.Never);
+        _userRepositoryMock.Verify(r => r.EmailExistsAsync(It.IsAny<Email>(), It.IsAny<Guid?>(), default), Times.Never);
     }
 
     [Fact]
     public async Task Handle_WhenEmailIsMalformed_ReturnsFailureWithoutCheckingUniqueness()
     {
         // Arrange
-        var command = new CreateUserCommand("Ana Silva", "not-an-email", "Senha123", []);
+        var command = new CreateUserCommand("Ana Silva", "not-an-email", "Senha123", UserRole.Requester);
 
         // Act
         var result = await _handler.Handle(command, default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        _userRepositoryMock.Verify(r => r.EmailExistsAsync(It.IsAny<Email>(), null, default), Times.Never);
-        _userRepositoryMock.Verify(r => r.AddAsync(It.IsAny<User>(), default), Times.Never);
-    }
-
-    [Fact]
-    public async Task Handle_WhenSomeRoleIdsDoNotExist_ReturnsFailureWithoutPersisting()
-    {
-        // Arrange
-        var existingRole = Role.Create("Designer", null);
-        var missingRoleId = Guid.NewGuid();
-        var command = new CreateUserCommand("Ana Silva", "ana@briefme.com", "Senha123", [existingRole.Id, missingRoleId]);
-
-        _roleRepositoryMock.Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), default))
-            .ReturnsAsync([existingRole]);
-
-        // Act
-        var result = await _handler.Handle(command, default);
-
-        // Assert
-        result.IsFailure.Should().BeTrue();
-        _userRepositoryMock.Verify(r => r.AddAsync(It.IsAny<User>(), default), Times.Never);
-        _unitOfWorkMock.Verify(u => u.CommitAsync(default), Times.Never);
+        _userRepositoryMock.Verify(r => r.EmailExistsAsync(It.IsAny<Email>(), It.IsAny<Guid?>(), default), Times.Never);
     }
 }

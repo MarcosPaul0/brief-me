@@ -1,0 +1,12 @@
+<th class="@ClassNames.Join("px-5 py-4 text-caption-uppercase uppercase text-muted", Class)" @attributes="AdditionalAttributes">@ChildContent</th>
+
+@code {
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+}

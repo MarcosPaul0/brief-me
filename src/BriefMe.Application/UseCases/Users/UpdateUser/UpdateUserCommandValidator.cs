@@ -16,5 +16,8 @@ public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCom
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage(UserErrors.Validation.EmailRequired)
             .EmailAddress().WithMessage(UserErrors.Validation.InvalidEmailFormat);
+
+        RuleFor(x => x.Role)
+            .IsInEnum().WithMessage(UserErrors.Validation.InvalidRole);
     }
 }

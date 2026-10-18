@@ -1,7 +1,6 @@
 using BriefMe.Application.Abstractions;
-using BriefMe.Domain.Constants;
+using BriefMe.Domain.Enums;
 using BriefMe.Domain.Entities;
-using BriefMe.Domain.Exceptions;
 using BriefMe.Domain.Repositories;
 using BriefMe.Domain.ValueObjects;
 
@@ -9,8 +8,7 @@ namespace BriefMe.Infrastructure.Persistence.Seeding;
 
 /// <summary>
 /// Seeds the initial administrator user (USR-048) so a freshly provisioned system is accessible.
-/// Runs after <see cref="RoleSeeder"/> (needs the Administrador role). Idempotent by e-mail: never
-/// recreates the user if it already exists. The password is BCrypt-hashed via
+/// Idempotent by e-mail: never recreates the user if it already exists. The password is BCrypt-hashed via
 /// <see cref="IPasswordHasher"/> — the plaintext default is only used to derive the hash.
 /// </summary>
 /// <remarks>
@@ -21,7 +19,6 @@ namespace BriefMe.Infrastructure.Persistence.Seeding;
 /// </remarks>
 public sealed class AdminUserSeeder(
     IUserRepository users,
-    IRoleRepository roles,
     IPasswordHasher passwordHasher,
     IUnitOfWork unitOfWork) : IDataSeeder
 {
@@ -36,14 +33,9 @@ public sealed class AdminUserSeeder(
         if (await users.EmailExistsAsync(email, cancellationToken: cancellationToken))
             return;
 
-        var adminRole = await roles.GetByNameAsync(Roles.Administrador, cancellationToken)
-            ?? throw new DomainException(
-                $"Role '{Roles.Administrador}' não encontrada. Execute o seed de roles antes do seed do administrador.");
-
         var passwordHash = passwordHasher.Hash(DefaultPassword);
 
-        var admin = User.Create(AdminFullName, email, passwordHash);
-        admin.AssignRole(adminRole.Id);
+        var admin = User.Create(AdminFullName, email, passwordHash, UserRole.Admin);
 
         await users.AddAsync(admin, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);

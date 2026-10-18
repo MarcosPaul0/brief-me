@@ -1,0 +1,176 @@
+@page "/perfil"
+@attribute [Authorize]
+@using System.Security.Claims
+@using BriefMe.Application.Common.Dtos
+@using BriefMe.Domain.Common
+@using BriefMe.Domain.ValueObjects
+@using Microsoft.AspNetCore.Authorization
+@implements IDisposable
+@inject CurrentUserProfile CurrentProfile
+@inject IProfileApiClient ProfileApi
+@inject AuthSessionStore SessionStore
+
+<PageTitle>Meu perfil</PageTitle>
+
+<PageContainer>
+    <PageHeader Title="Meu perfil" Description="Sua foto aparece no cabeçalho e na lista de usuários." />
+
+    <Card Class="mt-8">
+        @if (_profile is null && _loadError is null)
+        {
+            <LoadingState />
+        }
+        else if (_profile is null)
+        {
+            <EmptyState Title="@_loadError" Tone="EmptyStateTone.Danger">
+                <Button Variant="ButtonVariant.Secondary" Icon="IconName.RotateCcw" OnClick="LoadAsync">Tentar novamente</Button>
+            </EmptyState>
+        }
+        else
+        {
+            <div class="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+                <UserAvatar UserId="_profile.UserId" Name="@_profile.FullName" AvatarVersion="_profile.AvatarVersion" Size="AvatarSize.Lg" />
+
+                <div class="flex min-w-0 flex-1 flex-col gap-1">
+                    <CardTitle>@_profile.FullName</CardTitle>
+                    <CardDescription Class="truncate">@_profile.Email</CardDescription>
+                    <div class="mt-1"><Badge>@UserRoleLabels.Label(_profile.Role)</Badge></div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-4 border-t border-hairline-soft p-6 sm:p-8">
+                @if (_error is not null)
+                {
+                    <Alert>@_error</Alert>
+                }
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <FileButton id="avatar-file" Accept="@AcceptedTypes" Icon="IconName.Upload" Loading="_isUploading"
+                                Disabled="_isRemoving" OnChange="UploadAsync">
+                        @(_isUploading ? "Enviando..." : _profile.AvatarVersion is null ? "Enviar foto" : "Trocar foto")
+                    </FileButton>
+
+                    @if (_profile.AvatarVersion is not null)
+                    {
+                        <Button Variant="ButtonVariant.Ghost" Icon="IconName.Trash" OnClick="RemoveAsync" Loading="_isRemoving"
+                                Disabled="_isUploading">
+                            @(_isRemoving ? "Removendo..." : "Remover foto")
+                        </Button>
+                    }
+                </div>
+
+                <p class="text-caption text-muted">PNG, JPEG ou WebP, até @MaxSizeLabel. Sem foto, usamos a inicial do seu nome.</p>
+            </div>
+        }
+    </Card>
+</PageContainer>
+
+@code {
+    private const string AcceptedTypes = "image/png,image/jpeg,image/webp";
+    private static readonly string MaxSizeLabel = $"{AvatarFormat.MaxSizeBytes / (1024 * 1024)} MB";
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private UserDto? _profile;
+    private string? _loadError;
+    private string? _error;
+    private bool _isUploading;
+    private bool _isRemoving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentProfile.Changed += HandleProfileChanged;
+
+        // No token before the interactive restore — same guard as the other pages.
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        await SessionStore.RestorationCompleted;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loadError = null;
+
+        var user = AuthenticationState is null ? null : (await AuthenticationState).User;
+        var userIdClaim = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? user?.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(userIdClaim, out var userId))
+        {
+            _loadError = "Não foi possível identificar o usuário logado.";
+            return;
+        }
+
+        var result = await CurrentProfile.EnsureLoadedAsync(userId);
+        if (result.IsSuccess)
+            _profile = result.Value;
+        else
+            _loadError = result.Error;
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs args)
+    {
+        _error = null;
+        var file = args.File;
+
+        // Checked here too so a big file is refused before it crosses the circuit; the API stays authoritative.
+        if (file.Size > AvatarFormat.MaxSizeBytes)
+        {
+            _error = $"A imagem deve ter no máximo {MaxSizeLabel}.";
+            return;
+        }
+
+        _isUploading = true;
+        try
+        {
+            await using var stream = file.OpenReadStream(AvatarFormat.MaxSizeBytes);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+
+            var result = await ProfileApi.UploadAvatarAsync(buffer.ToArray(), file.Name, file.ContentType);
+            ApplyResult(result);
+        }
+        catch (IOException)
+        {
+            _error = "Não foi possível ler o arquivo selecionado.";
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        _error = null;
+        _isRemoving = true;
+
+        ApplyResult(await ProfileApi.RemoveAvatarAsync());
+
+        _isRemoving = false;
+    }
+
+    private void ApplyResult(Result<UserDto> result)
+    {
+        if (result.IsSuccess)
+        {
+            // Shared state: the header re-renders with the new avatar too (AVT-06).
+            CurrentProfile.Update(result.Value);
+            return;
+        }
+
+        // Validation failures carry per-field messages; the page has a single control, so show them together.
+        _error = result.Errors.Count > 0
+            ? string.Join(" ", result.Errors.Select(e => e.ErrorMessage).Distinct())
+            : result.Error;
+    }
+
+    private void HandleProfileChanged()
+    {
+        _profile = CurrentProfile.Profile;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => CurrentProfile.Changed -= HandleProfileChanged;
+}

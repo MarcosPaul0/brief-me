@@ -9,7 +9,7 @@ using BriefMe.Domain.Repositories;
 
 namespace BriefMe.Application.UseCases.Briefings.CancelBriefing;
 
-public sealed class CancelBriefingCommandHandler (
+public sealed class CancelBriefingCommandHandler(
     IBriefingRepository briefingRepository,
     ICurrentUser currentUser,
     IUnitOfWork unitOfWork) : ICommandHandler<CancelBriefingCommand, BriefingDto>
@@ -26,13 +26,12 @@ public sealed class CancelBriefingCommandHandler (
         if (briefing.RequesterId != requesterId)
             return Result.Forbidden<BriefingDto>(BriefingErrors.NotOwnerToSubmit);
 
-        // Cancelling an already-executing/cancelled briefing is an expected outcome (a stale list row, a
-        // second tab), not a bug: return a conflict instead of letting Briefing.Cancel() throw and surface
-        // as a 500 (CLAUDE.md — Result over exceptions for expected failures; RF010).
+        // Cancelling a claimed or already cancelled briefing is an expected outcome (a stale list row, a
+        // second tab), not a bug: return a conflict instead of letting Briefing.Cancel() throw.
         if (briefing.Status is BriefingStatus.Cancelled)
             return Result.Conflict<BriefingDto>(BriefingErrors.AlreadyCancelled);
 
-        if (briefing.Status is BriefingStatus.InProgress or BriefingStatus.Completed)
+        if (!briefing.IsOpenForRequester)
             return Result.Conflict<BriefingDto>(BriefingErrors.CancellationNotAllowed(briefing.Status));
 
         briefing.Cancel();

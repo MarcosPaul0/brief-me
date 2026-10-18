@@ -1,0 +1,46 @@
+@*
+    Centred message for a region with nothing to show — no results, not found, or a failed load (Tone Danger).
+    ChildContent is the follow-up action (retry, back). Icon sits above the title in a cream disc (Danger: error
+    surface); Danger falls back to an alert glyph when none is given.
+*@
+<div class="@ClassNames.Join("flex flex-col items-center justify-center gap-1 px-6 py-24 text-center", Class)">
+    @if (ResolvedIcon is { } icon)
+    {
+        <span class="@(Tone == EmptyStateTone.Danger
+                         ? "mb-3 flex size-12 items-center justify-center rounded-full bg-error-surface text-error-ink"
+                         : "mb-3 flex size-12 items-center justify-center rounded-full bg-surface-card text-muted")">
+            <Icon Name="icon" Size="22" />
+        </span>
+    }
+    <p class="@(Tone == EmptyStateTone.Danger ? "text-title-sm text-error-ink" : "text-title-sm text-ink")">@Title</p>
+    @if (Description is not null)
+    {
+        <p class="text-body-sm text-muted">@Description</p>
+    }
+    @if (ChildContent is not null)
+    {
+        <div class="mt-3">@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public EmptyStateTone Tone { get; set; }
+
+    [Parameter]
+    public IconName? Icon { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private IconName? ResolvedIcon => Icon ?? (Tone == EmptyStateTone.Danger ? IconName.CircleAlert : null);
+}

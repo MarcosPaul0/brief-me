@@ -7,13 +7,12 @@ namespace BriefMe.Domain.Entities;
 
 public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 {
-    private readonly List<UserRole> _userRoles = [];
-
-    private User(Guid id, string fullName, Email email, string passwordHash) : base(id)
+    private User(Guid id, string fullName, Email email, string passwordHash, UserRole role) : base(id)
     {
         FullName = fullName;
         Email = email;
         PasswordHash = passwordHash;
+        Role = role;
         Status = UserStatus.Active;
     }
 
@@ -29,7 +28,19 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 
     public UserStatus Status { get; private set; }
 
-    public IReadOnlyCollection<UserRole> UserRoles => _userRoles.AsReadOnly();
+    public UserRole Role { get; private set; }
+
+    /// <summary>Object-store key of the uploaded avatar; null when the user has none (the UI shows the initial).</summary>
+    public string? AvatarKey { get; private set; }
+
+    /// <summary>Content type detected from the avatar's bytes (<see cref="AvatarFormat"/>), served back as-is.</summary>
+    public string? AvatarContentType { get; private set; }
+
+    /// <summary>
+    /// Changes on every upload so clients can put it in the image URL and cache the response forever — a new
+    /// avatar is a new URL. Null exactly when <see cref="AvatarKey"/> is null.
+    /// </summary>
+    public Guid? AvatarVersion { get; private set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -45,7 +56,7 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
 
     public string? DeletedBy { get; private set; }
 
-    public static User Create(string fullName, Email email, string passwordHash)
+    public static User Create(string fullName, Email email, string passwordHash, UserRole role)
     {
         if (string.IsNullOrWhiteSpace(fullName))
             throw new DomainException("Nome do usuário é obrigatório.");
@@ -53,7 +64,10 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
         if (string.IsNullOrWhiteSpace(passwordHash))
             throw new DomainException("Hash de senha é obrigatório.");
 
-        return new User(Guid.NewGuid(), fullName.Trim(), email, passwordHash);
+        if (!Enum.IsDefined(role))
+            throw new DomainException("Perfil do usuário inválido.");
+
+        return new User(Guid.NewGuid(), fullName.Trim(), email, passwordHash, role);
     }
 
     public void ChangePassword(string newPasswordHash)
@@ -73,21 +87,35 @@ public class User : AggregateRoot, IAuditableEntity, ISoftDelete
         Email = email;
     }
 
+    public void ChangeAvatar(string storageKey, AvatarFormat format)
+    {
+        if (string.IsNullOrWhiteSpace(storageKey))
+            throw new DomainException("Chave do avatar é obrigatória.");
+
+        ArgumentNullException.ThrowIfNull(format);
+
+        AvatarKey = storageKey;
+        AvatarContentType = format.ContentType;
+        AvatarVersion = Guid.NewGuid();
+    }
+
+    public void RemoveAvatar()
+    {
+        AvatarKey = null;
+        AvatarContentType = null;
+        AvatarVersion = null;
+    }
+
     public void Activate() => Status = UserStatus.Active;
 
     public void Deactivate() => Status = UserStatus.Inactive;
 
-    public void AssignRole(Guid roleId)
+    public void ChangeRole(UserRole role)
     {
-        if (_userRoles.Any(ur => ur.RoleId == roleId))
-            return;
+        if (!Enum.IsDefined(role))
+            throw new DomainException("Perfil do usuário inválido.");
 
-        _userRoles.Add(UserRole.Create(Id, roleId));
-    }
-
-    public void RemoveRole(Guid roleId)
-    {
-        _userRoles.RemoveAll(ur => ur.RoleId == roleId);
+        Role = role;
     }
 
     public void MarkAsDeleted(string? deletedBy)

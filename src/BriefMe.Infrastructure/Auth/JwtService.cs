@@ -28,26 +28,14 @@ public sealed class JwtService : IJwtService
     {
         var expiresAt = DateTime.UtcNow.AddMinutes(_settings.AccessTokenMinutes);
 
-        var claims = new List<Claim>
+        var claims = new Claim[]
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email.Value),
             new(JwtRegisteredClaimNames.Name, user.FullName),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(ClaimTypes.Role, user.Role.ToString())
         };
-
-        var roles = user.UserRoles.Where(ur => ur.Role is not null).Select(ur => ur.Role!);
-
-        var permissionCodes = new HashSet<string>();
-        foreach (var role in roles)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, role.Name));
-
-            foreach (var permission in role.RolePermissions.Where(rp => rp.Permission is not null).Select(rp => rp.Permission!))
-                permissionCodes.Add(permission.Code);
-        }
-
-        claims.AddRange(permissionCodes.Select(code => new Claim(CustomClaimTypes.Permission, code)));
 
         var token = new JwtSecurityToken(
             issuer: _settings.Issuer,
