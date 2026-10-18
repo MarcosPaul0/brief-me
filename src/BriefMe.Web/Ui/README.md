@@ -94,7 +94,7 @@ Two families, like shadcn's `Input` vs `Form*`:
 
 | Component | Parameters | Notes |
 | --- | --- | --- |
-| `PageContainer` | `Width` (`Sm` 560, `Md` 760, `Lg` 900, `Xl` 1100 — default) | Canvas ground, gutters, centred column. Lists and forms both use the default `Xl` so screens line up; forms lay short fields out in `md:grid-cols-2`. |
+| `PageContainer` | `Class` | Canvas ground, gutters, centred `max-w-page` column (1100px, same as `AppHeader`). **No width parameter** — every app-shell page uses it as-is so screens line up; forms lay short fields out in `md:grid-cols-2`, detail grids widen at `lg`. |
 | `PageHeader` | `Title`, `Description`, `Meta`, `Actions` | The page's `h1` (`FocusOnNavigate` targets it). |
 
 ```razor

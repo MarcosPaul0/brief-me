@@ -1,25 +1,15 @@
-@* Page body: cream canvas ground, gutters, and a centred column capped at Width. *@
+@* Page body: cream canvas ground, gutters, and the one centred column every screen shares (max-w-page, the
+   header's width too). There is deliberately no width parameter — narrow content stays narrow inside it. *@
 <div class="min-h-full bg-canvas px-4 py-10 sm:px-8 sm:py-12">
-    <div class="@ClassNames.Join("mx-auto", MaxWidth, Class)">
+    <div class="@ClassNames.Join("mx-auto max-w-page", Class)">
         @ChildContent
     </div>
 </div>
 
 @code {
     [Parameter]
-    public PageWidth Width { get; set; } = PageWidth.Xl;
-
-    [Parameter]
     public string? Class { get; set; }
 
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
-
-    private string MaxWidth => Width switch
-    {
-        PageWidth.Sm => "max-w-[560px]",
-        PageWidth.Md => "max-w-[760px]",
-        PageWidth.Lg => "max-w-[900px]",
-        _ => "max-w-[1100px]"
-    };
 }

@@ -12,7 +12,7 @@
 
 <PageTitle>@(_briefing?.Title ?? "Briefing")</PageTitle>
 
-<PageContainer Width="PageWidth.Md">
+<PageContainer>
     <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Class="-ml-3" Icon="IconName.ArrowLeft" OnClick="NavigateBack">Voltar</Button>
 
     @if (_isLoading)
@@ -67,7 +67,7 @@
         }
 
         <Card Class="mt-5 p-6">
-            <dl class="grid gap-4 sm:grid-cols-2">
+            <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 @DetailItem(("Solicitante", _briefing.RequesterName ?? "—", false))
                 @DetailItem(("Designer", _briefing.DesignerName ?? "Ainda não assumido", false))
                 @DetailItem(("Área solicitante", _briefing.RequestingArea ?? "—", false))
@@ -227,7 +227,7 @@
 
     private static RenderFragment DetailItem((string Term, string Value, bool Wide) item) => __builder =>
     {
-        <div class="@(item.Wide ? "sm:col-span-2" : null)">
+        <div class="@(item.Wide ? "sm:col-span-2 lg:col-span-4" : null)">
             <dt class="text-caption-uppercase uppercase text-muted">@item.Term</dt>
             <dd class="mt-1 whitespace-pre-line text-body-md text-body-strong">@item.Value</dd>
         </div>
