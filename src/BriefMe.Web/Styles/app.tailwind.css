@@ -143,3 +143,11 @@ html, body {
     font-size: var(--text-body-md);
     line-height: var(--text-body-md--line-height);
 }
+
+/* Tailwind v4 dropped the pointer cursor on buttons; restore it for enabled ones only. */
+@layer base {
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]) {
+        cursor: pointer;
+    }
+}
