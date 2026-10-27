@@ -56,6 +56,32 @@ public static class AttachmentLabels
         _ => kind.ToString()
     };
 
+    /// <summary>Title of a kind's row in the gallery.</summary>
+    public static string KindPlural(AttachmentKind kind) => kind switch
+    {
+        AttachmentKind.Pdf => "PDFs",
+        AttachmentKind.Image => "Imagens",
+        AttachmentKind.Audio => "Áudios",
+        AttachmentKind.Video => "Vídeos",
+        _ => kind.ToString()
+    };
+
+    /// <summary>
+    /// One group per kind present, in gallery order (images, videos, PDFs, audio; an unknown kind last), each
+    /// keeping the list's original order.
+    /// </summary>
+    public static IReadOnlyList<IGrouping<AttachmentKind, BriefingAttachmentDto>> GroupByKind(IEnumerable<BriefingAttachmentDto> attachments) =>
+        [.. attachments.GroupBy(a => a.Kind).OrderBy(g => GalleryOrder(g.Key))];
+
+    private static int GalleryOrder(AttachmentKind kind) => kind switch
+    {
+        AttachmentKind.Image => 0,
+        AttachmentKind.Video => 1,
+        AttachmentKind.Pdf => 2,
+        AttachmentKind.Audio => 3,
+        _ => 4
+    };
+
     /// <summary>Bytes as the UI shows them: "512 B", "1,5 KB", "2,4 MB".</summary>
     public static string Size(long bytes) => bytes switch
     {
@@ -63,6 +89,24 @@ public static class AttachmentLabels
         < 1024 * 1024 => $"{(bytes / 1024d).ToString("0.#", PtBr)} KB",
         _ => $"{(bytes / (1024d * 1024d)).ToString("0.#", PtBr)} MB"
     };
+
+    /// <summary>Elapsed or total recording time as the recorder shows it: "00:05", "10:00".</summary>
+    public static string Duration(int seconds) => $"{seconds / 60:00}:{seconds % 60:00}";
+
+    /// <summary>
+    /// File name for a microphone take started at <paramref name="startedAt"/> (browser-local "yyyy-MM-dd-HHmmss"),
+    /// suffixed "-2", "-3"... when a queued file already has it — two takes in the same second stay apart.
+    /// </summary>
+    public static string RecordingFileName(string startedAt, IReadOnlyCollection<string> takenNames)
+    {
+        var baseName = $"gravacao-{startedAt}";
+        var name = $"{baseName}.wav";
+
+        for (var suffix = 2; takenNames.Contains(name, StringComparer.OrdinalIgnoreCase); suffix++)
+            name = $"{baseName}-{suffix}.wav";
+
+        return name;
+    }
 
     /// <summary>Relative URL of the anonymous content endpoint; the token is the authorization (ATT-18).</summary>
     public static string ContentUrl(Guid briefingId, BriefingAttachmentDto attachment) =>
