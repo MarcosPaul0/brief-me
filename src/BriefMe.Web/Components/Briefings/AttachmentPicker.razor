@@ -1,5 +1,5 @@
 @*
-    Attachment field of the briefing editor (ATT-06/07/13/21). Lists the briefing's current attachments (edit mode)
+    Attachment field of the briefing editor (ATT-06/07/13/21) and hosts the microphone recorder (REC-01). Lists the briefing's current attachments (edit mode)
     with a remove/undo toggle, queues newly picked files, and refuses on the spot what the API would reject anyway
     (size, extension, count). Accepted files are read into memory when picked: a later selection on the same
     InputFile does not keep earlier IBrowserFile handles reliable. The parent reads Queued / RemovedIds via @ref.
@@ -15,6 +15,7 @@
                     Disabled="@(Disabled || RemainingSlots == 0)" Loading="_isReading" OnChange="OnFilesPickedAsync">
             @(_isReading ? "Lendo arquivos..." : "Adicionar anexos")
         </FileButton>
+        <AudioRecorder Disabled="Disabled" CanAdd="@(RemainingSlots > 0)" TakenNames="QueuedNames" OnRecorded="Enqueue" />
         <p class="text-caption text-muted">
             @AttachmentLabels.AcceptedFormatsLabel. Até @Briefing.MaxAttachments arquivos de @AttachmentLabels.MaxSizeLabel cada.
         </p>
@@ -118,6 +119,15 @@
         _removedIds.Clear();
         _rejections.Clear();
         StateHasChanged();
+    }
+
+    private IReadOnlyCollection<string> QueuedNames => [.. _queued.Select(file => file.FileName)];
+
+    // A recorded take (REC-04) joins the queue like a picked file; the recorder already checked the slot.
+    private void Enqueue(AttachmentFile file)
+    {
+        _rejections.Clear();
+        _queued.Add(file);
     }
 
     private int RemainingSlots => Math.Max(0, Briefing.MaxAttachments - (Existing.Count - _removedIds.Count) - _queued.Count);

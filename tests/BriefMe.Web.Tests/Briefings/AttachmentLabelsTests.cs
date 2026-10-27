@@ -82,4 +82,130 @@ public class AttachmentLabelsTests
         // Assert
         url.Should().Be($"briefings/{briefingId}/attachments/{attachment.Id}/content?token=123.a%2Bb%2Fc%3D");
     }
+
+    [Theory]
+    [InlineData(0, "00:00")]
+    [InlineData(5, "00:05")]
+    [InlineData(65, "01:05")]
+    [InlineData(600, "10:00")]
+    public void Duration_WhenGivenSeconds_FormatsAsMinutesAndSeconds(int seconds, string expected)
+    {
+        // Arrange
+        // (seconds from InlineData)
+
+        // Act
+        var label = AttachmentLabels.Duration(seconds);
+
+        // Assert
+        label.Should().Be(expected);
+    }
+
+    [Fact]
+    public void RecordingFileName_WhenNameIsFree_UsesTheStartTimestamp()
+    {
+        // Arrange
+        string[] taken = ["guia.pdf"];
+
+        // Act
+        var name = AttachmentLabels.RecordingFileName("2026-10-26-143005", taken);
+
+        // Assert
+        name.Should().Be("gravacao-2026-10-26-143005.wav");
+    }
+
+    [Fact]
+    public void RecordingFileName_WhenSameSecondIsTaken_AddsTheNextFreeSuffix()
+    {
+        // Arrange
+        string[] taken = ["gravacao-2026-10-26-143005.wav", "GRAVACAO-2026-10-26-143005-2.wav"];
+
+        // Act
+        var name = AttachmentLabels.RecordingFileName("2026-10-26-143005", taken);
+
+        // Assert
+        name.Should().Be("gravacao-2026-10-26-143005-3.wav");
+    }
+
+    [Fact]
+    public void GroupByKind_WhenKindsAreMixed_OrdersGroupsImagesVideosPdfsAudios()
+    {
+        // Arrange
+        BriefingAttachmentDto[] attachments =
+        [
+            Attachment("a.mp3", AttachmentKind.Audio),
+            Attachment("b.pdf", AttachmentKind.Pdf),
+            Attachment("c.png", AttachmentKind.Image),
+            Attachment("d.mp4", AttachmentKind.Video),
+        ];
+
+        // Act
+        var groups = AttachmentLabels.GroupByKind(attachments);
+
+        // Assert
+        groups.Select(g => g.Key).Should().Equal(AttachmentKind.Image, AttachmentKind.Video, AttachmentKind.Pdf, AttachmentKind.Audio);
+    }
+
+    [Fact]
+    public void GroupByKind_WhenKindIsAbsent_OmitsItsGroup()
+    {
+        // Arrange
+        BriefingAttachmentDto[] attachments = [Attachment("a.pdf", AttachmentKind.Pdf), Attachment("b.png", AttachmentKind.Image)];
+
+        // Act
+        var groups = AttachmentLabels.GroupByKind(attachments);
+
+        // Assert
+        groups.Select(g => g.Key).Should().Equal(AttachmentKind.Image, AttachmentKind.Pdf);
+    }
+
+    [Fact]
+    public void GroupByKind_WhenGroupHasSeveralItems_KeepsTheirOriginalOrder()
+    {
+        // Arrange
+        BriefingAttachmentDto[] attachments =
+        [
+            Attachment("primeira.png", AttachmentKind.Image),
+            Attachment("guia.pdf", AttachmentKind.Pdf),
+            Attachment("segunda.png", AttachmentKind.Image),
+        ];
+
+        // Act
+        var groups = AttachmentLabels.GroupByKind(attachments);
+
+        // Assert
+        groups[0].Select(a => a.FileName).Should().Equal("primeira.png", "segunda.png");
+    }
+
+    [Fact]
+    public void GroupByKind_WhenKindIsUnknown_PlacesItsGroupLast()
+    {
+        // Arrange
+        BriefingAttachmentDto[] attachments = [Attachment("x.bin", (AttachmentKind)99), Attachment("a.mp3", AttachmentKind.Audio)];
+
+        // Act
+        var groups = AttachmentLabels.GroupByKind(attachments);
+
+        // Assert
+        groups.Select(g => g.Key).Should().Equal(AttachmentKind.Audio, (AttachmentKind)99);
+    }
+
+    [Theory]
+    [InlineData(AttachmentKind.Image, "Imagens")]
+    [InlineData(AttachmentKind.Video, "Vídeos")]
+    [InlineData(AttachmentKind.Pdf, "PDFs")]
+    [InlineData(AttachmentKind.Audio, "Áudios")]
+    public void KindPlural_WhenGivenKind_ReturnsGroupTitle(AttachmentKind kind, string expected)
+    {
+        // Arrange
+        // (kind from InlineData)
+
+        // Act
+        var label = AttachmentLabels.KindPlural(kind);
+
+        // Assert
+        label.Should().Be(expected);
+    }
+
+    private static BriefingAttachmentDto Attachment(string fileName, AttachmentKind kind) =>
+        new(Guid.NewGuid(), fileName, "application/octet-stream", kind, 1, DateTime.UtcNow, "token");
 }
