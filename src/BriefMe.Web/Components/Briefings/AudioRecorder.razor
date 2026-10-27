@@ -1,0 +1,296 @@
+@*
+    Microphone recorder of the briefing editor's attachment field (REC-01..REC-11). Idle → recording (counter up to
+    10:00, auto-stop) → review (player + add/discard). Capture and WAV encoding run in AudioRecorder.razor.js; the
+    bytes cross to .NET only when the take is added, as a stream (a single interop message is capped far below a
+    take's size). The parent decides whether a slot is left (CanAdd) and receives the take through OnRecorded.
+*@
+@implements IAsyncDisposable
+@using BriefMe.Domain.Entities
+@using BriefMe.Domain.ValueObjects
+@inject IJSRuntime JS
+
+@if (_state is RecorderState.Idle)
+{
+    @if (_isSupported)
+    {
+        <Button Variant="ButtonVariant.Outline" Icon="IconName.Mic" Disabled="@(Disabled || !CanAdd)" Loading="_isBusy" OnClick="StartAsync">
+            @(_isBusy ? "Abrindo microfone..." : "Gravar áudio")
+        </Button>
+    }
+}
+else
+{
+    <div class="flex basis-full flex-col gap-3 rounded-lg border border-hairline bg-surface-soft px-4 py-3">
+        @if (_state is RecorderState.Recording)
+        {
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="size-2.5 shrink-0 animate-pulse rounded-full bg-error-ink" aria-hidden="true"></span>
+                <p class="flex-1 text-body-sm font-semibold text-ink" role="status">
+                    Gravando <span class="font-normal tabular-nums text-muted">@AttachmentLabels.Duration(_elapsedSeconds) / @AttachmentLabels.Duration(MaxSeconds)</span>
+                </p>
+                <Button Size="ButtonSize.Sm" Icon="IconName.Square" Loading="_isBusy" OnClick="StopAsync">Parar</Button>
+                <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Icon="IconName.X" Disabled="_isBusy" OnClick="CancelAsync">Cancelar</Button>
+            </div>
+        }
+        else if (_take is not null)
+        {
+            <div class="flex flex-wrap items-center gap-3">
+                <p class="flex-1 text-body-sm font-semibold text-ink">
+                    Gravação <span class="font-normal text-muted">@AttachmentLabels.Duration(_take.DurationSeconds) · @AttachmentLabels.Size(_take.SizeBytes)</span>
+                </p>
+                <Button Size="ButtonSize.Sm" Icon="IconName.Plus" Disabled="Disabled" Loading="_isBusy" OnClick="AddAsync">
+                    @(_isBusy ? "Adicionando..." : "Adicionar aos anexos")
+                </Button>
+                <Button Variant="ButtonVariant.Ghost" Size="ButtonSize.Sm" Icon="IconName.Trash" Disabled="_isBusy" OnClick="DiscardAsync">Descartar</Button>
+            </div>
+            <audio controls src="@_take.Url" class="w-full"></audio>
+            @if (_limitReached)
+            {
+                <p class="text-caption text-muted">A gravação parou ao atingir o limite de @AttachmentLabels.Duration(MaxSeconds).</p>
+            }
+        }
+    </div>
+}
+
+@if (_warning is not null)
+{
+    <Alert Variant="AlertVariant.Warning" Class="basis-full">@_warning</Alert>
+}
+
+@code {
+    // Context #2: 10 minutes of 16 kHz mono 16-bit PCM ≈ 19 MB, under the 25 MB attachment cap.
+    private const int MaxSeconds = 10 * 60;
+
+    private const string ProcessingFailed = "Não foi possível processar a gravação. Tente novamente.";
+
+    /// <summary>True while the form saves; starting is blocked and a running capture is cancelled.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>False when the briefing has no attachment slot left.</summary>
+    [Parameter]
+    public bool CanAdd { get; set; } = true;
+
+    /// <summary>Names already queued, so a new take gets a distinct one.</summary>
+    [Parameter]
+    public IReadOnlyCollection<string> TakenNames { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<AttachmentFile> OnRecorded { get; set; }
+
+    private enum RecorderState { Idle, Recording, Review }
+
+    private sealed record Take(string Url, long SizeBytes, int Samples, int DurationSeconds, string StartedAt);
+
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _recorder;
+    private DotNetObjectReference<AudioRecorder>? _selfReference;
+
+    private RecorderState _state = RecorderState.Idle;
+    private bool _isSupported;
+    private bool _isBusy;
+    private bool _limitReached;
+    private int _elapsedSeconds;
+    private Take? _take;
+    private string? _warning;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Briefings/AudioRecorder.razor.js");
+            _isSupported = await _module.InvokeAsync<bool>("isSupported");
+        }
+        catch (JSException)
+        {
+            _isSupported = false;
+        }
+
+        // REC-08: without microphone APIs the button is never shown.
+        if (_isSupported)
+            StateHasChanged();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // REC-11: a save started mid-recording must not leave the microphone open.
+        if (Disabled && _state is RecorderState.Recording)
+            await CancelAsync();
+    }
+
+    private async Task StartAsync()
+    {
+        if (_module is null)
+            return;
+
+        _warning = null;
+        _limitReached = false;
+        _elapsedSeconds = 0;
+        _isBusy = true;
+
+        try
+        {
+            if (_recorder is null)
+            {
+                _selfReference = DotNetObjectReference.Create(this);
+                _recorder = await _module.InvokeAsync<IJSObjectReference>("createRecorder", _selfReference, MaxSeconds);
+            }
+
+            var outcome = await _recorder.InvokeAsync<string>("start");
+            if (outcome == "ok")
+                _state = RecorderState.Recording;
+            else
+                _warning = StartFailure(outcome);
+        }
+        catch (JSException)
+        {
+            _warning = ProcessingFailed;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        if (_recorder is null || _state is not RecorderState.Recording)
+            return;
+
+        _isBusy = true;
+
+        try
+        {
+            _take = await _recorder.InvokeAsync<Take?>("stop");
+            _state = _take is null ? RecorderState.Idle : RecorderState.Review;
+        }
+        catch (JSException)
+        {
+            await ResetAsync();
+            _warning = ProcessingFailed;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        if (_recorder is null || _take is null)
+            return;
+
+        _warning = null;
+
+        // REC-10: refused on the spot, the take stays in review so it can still be discarded.
+        if (_take.Samples == 0)
+        {
+            _warning = "Gravação vazia.";
+            return;
+        }
+
+        if (!CanAdd)
+        {
+            _warning = $"Limite de {Briefing.MaxAttachments} anexos atingido. Retire um anexo ou descarte a gravação.";
+            return;
+        }
+
+        _isBusy = true;
+
+        try
+        {
+            var bytes = await _recorder.InvokeAsync<IJSStreamReference>("takeBytes");
+            await using var stream = await bytes.OpenReadStreamAsync(AttachmentFormat.MaxSizeBytes);
+            using var buffer = new MemoryStream((int)_take.SizeBytes);
+            await stream.CopyToAsync(buffer);
+
+            var fileName = AttachmentLabels.RecordingFileName(_take.StartedAt, TakenNames);
+            await OnRecorded.InvokeAsync(new AttachmentFile(fileName, AttachmentFormat.Wav.ContentType, buffer.ToArray()));
+            await ResetAsync();
+        }
+        catch (Exception ex) when (ex is JSException or IOException or InvalidOperationException)
+        {
+            // REC-09: the queue is untouched; the take is dropped with its object URL.
+            await ResetAsync();
+            _warning = ProcessingFailed;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        _warning = null;
+        await ResetAsync();
+    }
+
+    private Task DiscardAsync() => CancelAsync();
+
+    private async Task ResetAsync()
+    {
+        _state = RecorderState.Idle;
+        _take = null;
+        _elapsedSeconds = 0;
+
+        if (_recorder is null)
+            return;
+
+        try
+        {
+            await _recorder.InvokeVoidAsync("cancel");
+        }
+        catch (JSException)
+        {
+            // The capture is gone either way; nothing else to release.
+        }
+    }
+
+    [JSInvokable]
+    public Task OnRecordingTick(int seconds)
+    {
+        _elapsedSeconds = seconds;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task OnRecordingLimitReached() => InvokeAsync(async () =>
+    {
+        _limitReached = true;
+        await StopAsync();
+        StateHasChanged();
+    });
+
+    private static string StartFailure(string outcome) => outcome switch
+    {
+        "denied" => "O acesso ao microfone foi bloqueado. Libere o microfone para este site nas configurações do navegador (ícone ao lado do endereço) e tente novamente.",
+        "no-device" => "Nenhum microfone foi encontrado. Conecte um microfone e tente novamente.",
+        "busy" => "O microfone está em uso por outro aplicativo. Feche-o e tente novamente.",
+        _ => ProcessingFailed
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_recorder is not null)
+            {
+                await _recorder.InvokeVoidAsync("dispose");
+                await _recorder.DisposeAsync();
+            }
+
+            if (_module is not null)
+                await _module.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException)
+        {
+            // Circuit gone: the browser tab (and its microphone capture) went with it.
+        }
+
+        _selfReference?.Dispose();
+    }
+}
